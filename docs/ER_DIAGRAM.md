@@ -1,6 +1,6 @@
-# Entity Relationship Diagram (ERD)
+# Entity Relationship Diagram (ERD) - Implemented Schema
 
-This document visualizes the complete database schema for Miles Admin Hub API using Mermaid ER notation.
+This diagram visualizes the implemented PostgreSQL schema for Miles Admin Hub API in Mermaid ER notation.
 
 ```mermaid
 erDiagram
@@ -14,8 +14,8 @@ erDiagram
         varchar_50 phone
         varchar_50 timezone
         boolean twoFactorEnabled
-        timestamp createdAt
-        timestamp updatedAt
+        timestamptz createdAt
+        timestamptz updatedAt
     }
 
     USER {
@@ -34,11 +34,11 @@ erDiagram
         enum role
         enum status
         boolean twoFactorEnabled
-        timestamp lastLoginAt
-        timestamp joinedAt
-        timestamp createdAt
-        timestamp updatedAt
-        timestamp deletedAt
+        timestamptz lastLoginAt
+        timestamptz joinedAt
+        timestamptz createdAt
+        timestamptz updatedAt
+        timestamptz deletedAt
     }
 
     TRANSACTION {
@@ -55,17 +55,18 @@ erDiagram
         decimal_12_2 gatewayFee
         decimal_12_2 subtotal
         decimal_12_2 total
-        timestamp settledAt
-        timestamp createdAt
-        timestamp updatedAt
+        timestamptz settledAt
+        timestamptz createdAt
+        timestamptz updatedAt
     }
 
     TRANSACTION_STATUS_HISTORY {
         uuid id PK
         uuid transactionId FK
+        uuid adminId FK
         enum status
         varchar_500 note
-        timestamp createdAt
+        timestamptz createdAt
     }
 
     BOOKING {
@@ -74,9 +75,9 @@ erDiagram
         uuid userId FK
         varchar_255 serviceName
         varchar_100 category
-        timestamp scheduledAt
+        timestamptz scheduledAt
         decimal_4_2 durationHours
-        timestamp endTime
+        timestamptz endTime
         varchar_255 location
         text customerNotes
         enum status
@@ -84,16 +85,17 @@ erDiagram
         enum paymentStatus
         varchar_100 paymentMethod
         varchar_30 invoiceCode UK
-        timestamp createdAt
-        timestamp updatedAt
+        timestamptz createdAt
+        timestamptz updatedAt
     }
 
     BOOKING_LOG {
         uuid id PK
         uuid bookingId FK
+        uuid adminId FK
         varchar_100 event
         varchar_500 description
-        timestamp createdAt
+        timestamptz createdAt
     }
 
     ACTIVITY_LOG {
@@ -101,7 +103,7 @@ erDiagram
         uuid userId FK
         varchar_100 action
         varchar_500 description
-        timestamp createdAt
+        timestamptz createdAt
     }
 
     ALERT {
@@ -110,26 +112,41 @@ erDiagram
         varchar_500 description
         enum severity
         boolean isResolved
-        timestamp createdAt
+        timestamptz createdAt
     }
 
-    USER ||--o{ TRANSACTION : "places"
-    TRANSACTION ||--o{ TRANSACTION_STATUS_HISTORY : "tracks"
-    USER ||--o{ BOOKING : "schedules"
-    BOOKING ||--o{ BOOKING_LOG : "records"
-    USER ||--o{ ACTIVITY_LOG : "generates"
+    USER ||--o{ TRANSACTION : "places (1:N)"
+    TRANSACTION ||--o{ TRANSACTION_STATUS_HISTORY : "tracks (1:N)"
+    ADMIN |o--o{ TRANSACTION_STATUS_HISTORY : "audits (0:N)"
+    USER ||--o{ BOOKING : "schedules (1:N)"
+    BOOKING ||--o{ BOOKING_LOG : "records (1:N)"
+    ADMIN |o--o{ BOOKING_LOG : "audits (0:N)"
+    USER ||--o{ ACTIVITY_LOG : "generates (1:N)"
 ```
 
 ---
 
-## Relationship Summary
+## Implemented Relationship & Key Summary
 
-| Parent Entity | Relationship | Child Entity | Cardinality | Foreign Key | Cascade Rule | Business Meaning |
+| Parent Entity | Relationship | Child Entity | Cardinality | Foreign Key | Delete Rule | Meaning & Audit Invariant |
 |---|---|---|---|---|---|---|
-| `User` | places | `Transaction` | `1 : N` | `Transaction.userId` | `ON DELETE RESTRICT` | A user can execute many transactions. Financial records are preserved even if user is suspended. |
-| `Transaction` | tracks | `TransactionStatusHistory` | `1 : N` | `TransactionStatusHistory.transactionId` | `ON DELETE CASCADE` | Each transaction has a sequential timeline of status transitions and processing notes. |
-| `User` | schedules | `Booking` | `1 : N` | `Booking.userId` | `ON DELETE RESTRICT` | A user can reserve many bookings and appointments across various service categories. |
-| `Booking` | records | `BookingLog` | `1 : N` | `BookingLog.bookingId` | `ON DELETE CASCADE` | Each booking logs lifecycle events (Creation, Assignment, Confirmation, Rescheduling). |
-| `User` | generates | `ActivityLog` | `1 : N` | `ActivityLog.userId` | `ON DELETE CASCADE` | Users accumulate security and account update audit entries displayed on their detail page. |
-| *(None)* | standalone | `Admin` | Independent | N/A | N/A | Administrators authenticate and manage the platform via JWT tokens. |
-| *(None)* | standalone | `Alert` | Independent | N/A | N/A | System alerts are triggered globally by system health conditions and pending queues. |
+| `User` | places | `Transaction` | `1 : N` | `Transaction.userId` | `RESTRICT` | Financial records are never removed even when customer account is soft-deleted. |
+| `Transaction` | tracks | `TransactionStatusHistory` | `1 : N` | `TransactionStatusHistory.transactionId` | `CASCADE` | Transaction maintains an immutable chronological processing history log. |
+| `Admin` | audits | `TransactionStatusHistory` | `0 : N` | `TransactionStatusHistory.adminId` | `SET NULL` | Records optional acting administrator who authorized/settled the transaction. |
+| `User` | schedules | `Booking` | `1 : N` | `Booking.userId` | `RESTRICT` | User appointments across all service categories. |
+| `Booking` | records | `BookingLog` | `1 : N` | `BookingLog.bookingId` | `CASCADE` | Booking lifecycle progression events. |
+| `Admin` | audits | `BookingLog` | `0 : N` | `BookingLog.adminId` | `SET NULL` | Records optional acting administrator who rescheduled/cancelled the booking. |
+| `User` | generates | `ActivityLog` | `1 : N` | `ActivityLog.userId` | `CASCADE` | User-centric security and profile update audit log feed. |
+| *(None)* | standalone | `Alert` | `N/A` | `N/A` | `N/A` | Operational dashboard system alerts. |
+| *(None)* | standalone | `Admin` | `N/A` | `N/A` | `N/A` | Authenticated operators managing the dashboard platform. |
+
+---
+
+## Database Sequences
+
+| Sequence Name | Target Format | Concurrency Invariant |
+|---|---|---|
+| `user_code_seq` | `USR-0001` | Atomic PostgreSQL sequence allocation (`SELECT nextval('user_code_seq')`) |
+| `txn_code_seq` | `TXN-0001` | Atomic PostgreSQL sequence allocation (`SELECT nextval('txn_code_seq')`) |
+| `booking_code_seq` | `BKG-0001` | Atomic PostgreSQL sequence allocation (`SELECT nextval('booking_code_seq')`) |
+| `invoice_code_seq` | `INV-10001` | Atomic PostgreSQL sequence allocation (`SELECT nextval('invoice_code_seq')`) |
