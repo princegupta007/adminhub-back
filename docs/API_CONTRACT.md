@@ -34,7 +34,13 @@
   *Pagination Parameters:* `page` (default `1`, min `1`), `limit` (default `10`, min `1`, max `100`).
 
 - **Single Resource Endpoints:**
-  Return the resource object directly with **no envelope**.
+  Always return the resource object enclosed in a `data` envelope:
+  ```json
+  {
+    "data": { ... }
+  }
+  ```
+  *(Public health checks `/health` return raw `{ status: "ok", uptime, timestamp }`).*
 
 ### 1.3. Global Error Format
 All errors are normalized via a centralized exception filter:

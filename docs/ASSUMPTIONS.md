@@ -28,7 +28,7 @@ These requirements are directly documented and mandated by the assignment evalua
    - Global route prefix `/api/v1` for all feature endpoints.
    - Global JWT guard active on all routes except `POST /api/v1/auth/login` and `GET /health`.
    - List endpoints return `{ data: [...], meta: { page, limit, total, totalPages } }`. Default `page=1`, default `limit=10`, max `limit=100`. Empty lists return HTTP 200 with `data: []` and `meta.total: 0`.
-   - Single-resource endpoints return the resource object directly without an outer data envelope.
+   - Single-resource endpoints return `{ data: ... }` wrapped consistently in a `data` envelope (preventing double wrapping). Public health checks (`GET /health`) return `{ status: "ok", uptime, timestamp }`.
    - Global exception filter formatting all errors into `{ statusCode, message, error, timestamp, path }`.
    - All monetary values formatted as JSON numbers with 2 decimal places. All dates formatted as ISO 8601 strings.
    - MoM percentage changes calculated server-side comparing current calendar month to the previous calendar month.

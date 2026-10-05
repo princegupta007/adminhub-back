@@ -1,114 +1,136 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Miles Admin Hub API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+> **Production-Ready REST API for Miles Admin Dashboard**  
+> Built with NestJS 10+ (strict TypeScript), PostgreSQL, Prisma ORM, and Passport JWT Authentication.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
+## 1. Tech Stack
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Framework:** NestJS 10+ (TypeScript Strict Mode, ESM NodeNext)
+- **Database & ORM:** PostgreSQL + Prisma ORM 6 (strictly version-controlled migrations)
+- **Authentication:** JWT via `passport-jwt` + bcrypt (10 salt rounds)
+- **Validation:** `class-validator` + `class-transformer` (global whitelist & forbidden unknown properties)
+- **Security:** Helmet headers, CORS restricted to configured origins, rate limiting via `@nestjs/throttler`
+- **Documentation:** Interactive Swagger/OpenAPI mounted at `/api/docs`
+- **Testing:** Vitest + Supertest
 
-## Project setup
+---
 
+## 2. Getting Started
+
+### Prerequisites
+- Node.js 20+ / 24+
+- PostgreSQL 14+ instance running locally or via Docker
+
+### Environment Setup
+Copy the example environment file and configure local credentials:
 ```bash
-$ npm install
+cp .env.example .env
 ```
 
-## Compile and run the project
+| Variable | Description | Default / Example |
+| :--- | :--- | :--- |
+| `PORT` | HTTP server port | `4000` |
+| `NODE_ENV` | Runtime environment (`development`, `production`, `test`) | `development` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/miles_admin_dev?schema=public` |
+| `JWT_SECRET` | Secret key for signing JWT tokens (min 32 chars) | Safe random string |
+| `JWT_EXPIRES_IN` | Token time-to-live string | `1d` |
+| `FRONTEND_URL` | Allowed frontend origin list (comma-separated) | `http://localhost:3000,https://miles-flax.vercel.app` |
+| `THROTTLE_TTL` | Throttler window duration in seconds | `60` |
+| `THROTTLE_LIMIT` | Global requests allowed per window | `100` |
+| `LOGIN_THROTTLE_LIMIT`| Stricter requests allowed on `/api/v1/auth/login` | `5` |
+
+---
+
+## 3. Database Migration & Seeding
+
+1. **Run Prisma Migrations:**
+   ```bash
+   npm run prisma:migrate
+   ```
+2. **Seed Initial Database Data:**
+   ```bash
+   npm run prisma:seed
+   ```
+
+### Seeded Super Admin Credentials
+- **Email:** `admin@miles.io`
+- **Password:** `Admin@123`
+- **Role:** `SUPER_ADMIN`
+- **Seeded Dataset:** 50 users, 120 historical transactions with child history logs, 60 bookings with audit logs, 45 activity logs, 3 dashboard alerts.
+
+---
+
+## 4. Running the Application
 
 ```bash
-# development
-$ npm run start
+# Development mode with hot-reload
+npm run start:dev
 
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+# Production build & start
+npm run build
+npm run start:prod
 ```
 
-## Run tests
+### Key Endpoints
+- **Swagger Documentation:** `http://localhost:4000/api/docs`
+- **Public Health Probe:** `http://localhost:4000/health` or `http://localhost:4000/api/v1/health`
+- **Admin Login:** `POST http://localhost:4000/api/v1/auth/login`
+- **Admin Profile:** `GET http://localhost:4000/api/v1/auth/me`
+
+---
+
+## 5. Authentication & JWT Usage
+
+### Login Request
+```bash
+curl -X POST http://localhost:4000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@miles.io","password":"Admin@123"}'
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "admin": {
+      "id": "b3f5818f-afb9-4ffb-a626-e1ce3548f7d7",
+      "name": "Sarah Jenkins",
+      "email": "admin@miles.io",
+      "role": "SUPER_ADMIN",
+      "avatarUrl": "https://i.pravatar.cc/150?u=admin_sarah",
+      "twoFactorEnabled": true
+    }
+  }
+}
+```
+
+### Authenticated Requests
+Pass the access token in the `Authorization` header:
+```bash
+curl -X GET http://localhost:4000/api/v1/auth/me \
+  -H "Authorization: Bearer <accessToken>"
+```
+
+---
+
+## 6. Testing & Quality Verification
 
 ```bash
-# unit tests
-$ npm run test
+# Run unit tests
+npm test
 
-# e2e tests
-$ npm run test:e2e
+# Run end-to-end integration tests
+npm run test:e2e
 
-# test coverage
-$ npm run test:cov
+# Run linter
+npm run lint
+
+# Format codebase
+npm run format
+
+# TypeScript strict build
+npm run build
 ```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
