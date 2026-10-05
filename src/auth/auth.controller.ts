@@ -13,7 +13,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { ThrottleLogin } from '../common/decorators/throttle-login.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-request.interface.js';
@@ -30,7 +30,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ThrottleLogin()
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

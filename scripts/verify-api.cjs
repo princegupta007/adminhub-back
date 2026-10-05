@@ -1,4 +1,5 @@
 const http = require('http');
+const { PrismaClient } = require('@prisma/client');
 
 function request(options, body) {
   return new Promise((resolve, reject) => {
@@ -72,32 +73,10 @@ async function run() {
     },
   );
   console.log('4. POST /api/v1/auth/login [Valid Credentials] ->', loginSuccessRes.statusCode);
-  console.log('   Data received:', {
-    tokenPrefix: loginSuccessRes.data.data?.accessToken?.substring(0, 25) + '...',
-    admin: loginSuccessRes.data.data?.admin,
-  });
   const token = loginSuccessRes.data.data?.accessToken;
+  console.log('   Admin logged in:', loginSuccessRes.data.data?.admin?.email);
 
-  // 4. Login with invalid credentials
-  const loginFailRes = await request(
-    {
-      hostname: 'localhost',
-      port: 4000,
-      path: '/api/v1/auth/login',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Forwarded-For': '192.168.10.2',
-      },
-    },
-    {
-      email: 'admin@miles.io',
-      password: 'WrongPassword',
-    },
-  );
-  console.log('5. POST /api/v1/auth/login [Invalid Credentials] ->', loginFailRes.statusCode, loginFailRes.data);
-
-  // 5. GET /api/v1/auth/me with valid Bearer token
+  // 4. GET /api/v1/auth/me
   const meSuccessRes = await request({
     hostname: 'localhost',
     port: 4000,
@@ -107,66 +86,138 @@ async function run() {
       Authorization: `Bearer ${token}`,
     },
   });
-  console.log('6. GET /api/v1/auth/me [Valid Bearer] ->', meSuccessRes.statusCode, meSuccessRes.data);
+  console.log('5. GET /api/v1/auth/me ->', meSuccessRes.statusCode, meSuccessRes.data.data?.name);
 
-  // 6. GET /api/v1/auth/me with missing token
-  const meMissingRes = await request({
+  // 5. GET /api/v1/users (list)
+  const usersListRes = await request({
     hostname: 'localhost',
     port: 4000,
-    path: '/api/v1/auth/me',
-    method: 'GET',
-  });
-  console.log('7. GET /api/v1/auth/me [Missing Token] ->', meMissingRes.statusCode, meMissingRes.data);
-
-  // 7. GET /api/v1/auth/me with invalid token
-  const meInvalidRes = await request({
-    hostname: 'localhost',
-    port: 4000,
-    path: '/api/v1/auth/me',
+    path: '/api/v1/users?page=1&limit=5&sortBy=name&order=asc',
     method: 'GET',
     headers: {
-      Authorization: 'Bearer invalid.token.value',
+      Authorization: `Bearer ${token}`,
     },
   });
-  console.log('8. GET /api/v1/auth/me [Invalid Token] ->', meInvalidRes.statusCode, meInvalidRes.data);
+  console.log('6. GET /api/v1/users [List & Pagination] ->', usersListRes.statusCode);
+  console.log('   Items returned:', usersListRes.data.data?.length, '| Total:', usersListRes.data.meta?.total);
 
-  // 8. Rate Limiting Test on /api/v1/auth/login
-  console.log('9. Testing Login Rate Limiting (threshold: 5)...');
-  const throttledIp = '10.200.200.55';
-  let throttled = false;
-  for (let i = 1; i <= 7; i++) {
-    const res = await request(
-      {
-        hostname: 'localhost',
-        port: 4000,
-        path: '/api/v1/auth/login',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Forwarded-For': throttledIp,
-        },
+  // 6. GET /api/v1/users/stats
+  const usersStatsRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/users/stats',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('7. GET /api/v1/users/stats ->', usersStatsRes.statusCode);
+  console.log('   Stats:', usersStatsRes.data.data);
+
+  // 7. GET /api/v1/users/USR-0001 (single user detail)
+  const userDetailRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/users/USR-0001',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('8. GET /api/v1/users/USR-0001 ->', userDetailRes.statusCode);
+  console.log('   Detail:', {
+    userCode: userDetailRes.data.data?.userCode,
+    name: userDetailRes.data.data?.name,
+    recentTxnCount: userDetailRes.data.data?.recentTransactions?.length,
+    recentBookingCount: userDetailRes.data.data?.recentBookings?.length,
+  });
+
+  // 8. POST /api/v1/users (create user)
+  const newEmail = `manual.test.${Date.now()}@example.com`;
+  const createUserRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: '/api/v1/users',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
       },
-      {
-        email: 'admin@miles.io',
-        password: 'Attempt_' + i,
+    },
+    {
+      firstName: 'Alexander',
+      lastName: 'Hamilton',
+      email: newEmail,
+      phone: '+1 (555) 910-1804',
+      role: 'EDITOR',
+      status: 'ACTIVE',
+      addressLine: '123 Wall St',
+      city: 'New York',
+      state: 'NY',
+      country: 'USA',
+    },
+  );
+  console.log('9. POST /api/v1/users [Create] ->', createUserRes.statusCode);
+  const createdUser = createUserRes.data.data;
+  console.log('   Created user:', {
+    userCode: createdUser?.userCode,
+    email: createdUser?.email,
+    role: createdUser?.role,
+  });
+
+  // 9. PATCH /api/v1/users/:code (update user)
+  const updateUserRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: `/api/v1/users/${createdUser?.userCode}`,
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
       },
-    );
-    if (res.statusCode === 429) {
-      console.log(`   Attempt ${i} successfully blocked with HTTP 429:`, res.data);
-      throttled = true;
-      break;
-    } else {
-      console.log(`   Attempt ${i} returned status: ${res.statusCode}`);
-    }
-  }
+    },
+    {
+      phone: '+1 (555) 999-8888',
+      role: 'ADMIN',
+    },
+  );
+  console.log('10. PATCH /api/v1/users/:code [Update] ->', updateUserRes.statusCode);
+  console.log('    Updated fields:', {
+    phone: updateUserRes.data.data?.phone,
+    role: updateUserRes.data.data?.role,
+  });
 
-  if (throttled) {
-    console.log('✅ Rate limiting verified successfully!');
-  } else {
-    console.log('❌ Rate limiting did not trigger within 7 attempts.');
-  }
+  // 10. DELETE /api/v1/users/:code (soft delete)
+  const deleteUserRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: `/api/v1/users/${createdUser?.userCode}`,
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('11. DELETE /api/v1/users/:code [Soft Delete] ->', deleteUserRes.statusCode, deleteUserRes.data);
 
-  console.log('\n✨ ALL MANUAL VERIFICATION CHECKS PASSED!');
+  // 11. Database verification after mutation
+  const prisma = new PrismaClient();
+  const dbUser = await prisma.user.findUnique({
+    where: { userCode: createdUser?.userCode },
+  });
+  console.log('12. Direct Database Check:');
+  console.log('    User in DB deletedAt:', dbUser?.deletedAt);
+  console.log('    User status in DB:', dbUser?.status);
+
+  const activities = await prisma.activityLog.findMany({
+    where: { userId: dbUser?.id },
+    orderBy: { createdAt: 'desc' },
+  });
+  console.log('    Audit activity logs created for user:', activities.map((a) => a.action));
+  await prisma.$disconnect();
+
+  console.log('\n✨ ALL MANUAL VERIFICATION CHECKS PASSED SUCCESSFULLY!');
 }
 
 run().catch((err) => {

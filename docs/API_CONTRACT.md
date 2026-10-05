@@ -451,8 +451,10 @@ Standard status codes:
 - **Response (`200 OK`):**
   ```json
   {
-    "success": true,
-    "message": "User USR-0001 soft deleted successfully"
+    "data": {
+      "success": true,
+      "message": "User USR-0001 soft deleted successfully"
+    }
   }
   ```
 - **Errors:** `404 Not Found`.

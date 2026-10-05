@@ -388,7 +388,12 @@ async function main() {
       },
     ],
   });
-  console.log('✓ Created system alerts');
+  // Synchronize database sequences to highest seeded record numbers
+  await prisma.$executeRawUnsafe(`SELECT setval('user_code_seq', 50, true);`);
+  await prisma.$executeRawUnsafe(`SELECT setval('txn_code_seq', 120, true);`);
+  await prisma.$executeRawUnsafe(`SELECT setval('booking_code_seq', 60, true);`);
+  await prisma.$executeRawUnsafe(`SELECT setval('invoice_code_seq', 60, true);`);
+  console.log('✓ Synchronized database sequences (user_code_seq -> 50, txn_code_seq -> 120, booking_code_seq -> 60, invoice_code_seq -> 60)');
 
   console.log('✨ Database seed completed successfully!');
 }

@@ -236,7 +236,7 @@ describe('Auth & Security (e2e)', () => {
   });
 
   describe('13. Rate Limiting (Login Throttling)', () => {
-    it('should trigger 429 Too Many Requests when login limit (5) is exceeded from same IP', async () => {
+    it('should trigger 429 Too Many Requests when default login limit (5) is exceeded from same IP', async () => {
       let hit429 = false;
       const testIp = '192.168.100.99';
 
@@ -260,6 +260,54 @@ describe('Auth & Security (e2e)', () => {
       }
 
       expect(hit429).toBe(true);
+    });
+
+    it('should dynamically honor custom configured LOGIN_THROTTLE_LIMIT from environment', async () => {
+      // Temporarily set custom LOGIN_THROTTLE_LIMIT = 2
+      const originalEnv = process.env.LOGIN_THROTTLE_LIMIT;
+      process.env.LOGIN_THROTTLE_LIMIT = '2';
+
+      try {
+        const dynamicModule: TestingModule = await Test.createTestingModule({
+          imports: [AppModule],
+        }).compile();
+
+        const dynamicApp = dynamicModule.createNestApplication();
+        const expressApp = dynamicApp.getHttpAdapter().getInstance() as Express;
+        expressApp.set('trust proxy', true);
+        dynamicApp.setGlobalPrefix('api/v1', {
+          exclude: ['health', 'api/v1/health'],
+        });
+        await dynamicApp.init();
+
+        const customIp = '10.88.88.88';
+
+        // Attempt 1: 401
+        const r1 = await request(dynamicApp.getHttpServer())
+          .post('/api/v1/auth/login')
+          .set('X-Forwarded-For', customIp)
+          .send({ email: 'admin@miles.io', password: 'bad1' });
+        expect(r1.status).toBe(401);
+
+        // Attempt 2: 401
+        const r2 = await request(dynamicApp.getHttpServer())
+          .post('/api/v1/auth/login')
+          .set('X-Forwarded-For', customIp)
+          .send({ email: 'admin@miles.io', password: 'bad2' });
+        expect(r2.status).toBe(401);
+
+        // Attempt 3: 429 (should trigger on 3rd attempt because limit is 2)
+        const r3 = await request(dynamicApp.getHttpServer())
+          .post('/api/v1/auth/login')
+          .set('X-Forwarded-For', customIp)
+          .send({ email: 'admin@miles.io', password: 'bad3' });
+        expect(r3.status).toBe(429);
+        expect(r3.body.statusCode).toBe(429);
+
+        await dynamicApp.close();
+      } finally {
+        process.env.LOGIN_THROTTLE_LIMIT = originalEnv;
+      }
     });
   });
 });

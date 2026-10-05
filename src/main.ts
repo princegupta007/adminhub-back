@@ -70,6 +70,10 @@ async function bootstrap() {
       'Authentication',
       'Admin login, credential verification, and profile management',
     )
+    .addTag(
+      'Users',
+      'User management, pagination, search, statistics, and profile lifecycle',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
