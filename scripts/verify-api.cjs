@@ -28,6 +28,11 @@ function request(options, body) {
 
 async function run() {
   console.log('🚀 Starting Manual Endpoint Verification against live server on port 4000...');
+  const prisma = new PrismaClient();
+  const dbUser = await prisma.user.findFirst({ where: { deletedAt: null } });
+  if (!dbUser) {
+    throw new Error('No active user found in database. Please run npm run prisma:seed');
+  }
 
   // 1. Health checks
   const healthRes = await request({
@@ -296,9 +301,108 @@ async function run() {
   console.log('    Txn in DB status:', dbTxn?.status, 'SettledAt in DB:', dbTxn?.settledAt);
   console.log('    Status histories in DB:', dbTxn?.statusHistory.map((h) => `${h.status}: ${h.note}`));
 
+  // 18. GET /api/v1/bookings (Listing & Pagination)
+  const listBkgRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/bookings?page=1&limit=5',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('18. GET /api/v1/bookings ->', listBkgRes.statusCode);
+  console.log('    Total bookings:', listBkgRes.data.meta?.total, 'Total pages:', listBkgRes.data.meta?.totalPages);
+  console.log('    First item:', listBkgRes.data.data?.[0]?.bookingCode, listBkgRes.data.data?.[0]?.serviceName, '$' + listBkgRes.data.data?.[0]?.amount);
+
+  // 19. GET /api/v1/bookings/stats
+  const statsBkgRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/bookings/stats',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('19. GET /api/v1/bookings/stats ->', statsBkgRes.statusCode);
+  console.log('    Stats overview:', statsBkgRes.data.data);
+
+  // 20. POST /api/v1/bookings (Create booking)
+  const scheduledTime = new Date(Date.now() + 86400000 * 5).toISOString();
+  const createBkgRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: '/api/v1/bookings',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      userId: dbUser.id,
+      serviceName: 'HVAC Air Filter Replacement & Diagnostics',
+      category: 'HOME_MAINTENANCE',
+      scheduledAt: scheduledTime,
+      durationHours: 2.0,
+      amount: 150.0,
+      location: '100 Main St, Suite 400',
+      notes: 'Customer reported unusual fan noise',
+    },
+  );
+  console.log('20. POST /api/v1/bookings [Create] ->', createBkgRes.statusCode);
+  const createdBkg = createBkgRes.data.data;
+  console.log('    Created Booking:', createdBkg?.bookingCode, 'Invoice:', createdBkg?.invoiceNumber, 'End:', createdBkg?.endTime);
+
+  // 21. GET /api/v1/bookings/:code (Detail)
+  const detailBkgRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: `/api/v1/bookings/${createdBkg?.bookingCode}`,
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('21. GET /api/v1/bookings/:code [Detail] ->', detailBkgRes.statusCode);
+  console.log('    Customer on detail:', detailBkgRes.data.data?.customer?.name);
+  console.log('    Completed bookings count:', detailBkgRes.data.data?.customer?.completedBookingsCount);
+  console.log('    Lifecycle logs count:', detailBkgRes.data.data?.lifecycleLogs?.length);
+
+  // 22. PATCH /api/v1/bookings/:code (Update / Complete)
+  const updateBkgRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: `/api/v1/bookings/${createdBkg?.bookingCode}`,
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      status: 'COMPLETED',
+      notes: 'Technician completed replacement and airflow check',
+    },
+  );
+  console.log('22. PATCH /api/v1/bookings/:code ->', updateBkgRes.statusCode);
+  console.log('    Updated status:', updateBkgRes.data.data?.status, 'Payment Status:', updateBkgRes.data.data?.paymentStatus);
+
+  // 23. Direct DB Check for Booking
+  const dbBooking = await prisma.booking.findUnique({
+    where: { bookingCode: createdBkg?.bookingCode },
+    include: { logs: true },
+  });
+  console.log('23. Direct DB Check for Booking:');
+  console.log('    Booking in DB status:', dbBooking?.status, 'Payment:', dbBooking?.paymentStatus);
+  console.log('    Booking logs in DB:', dbBooking?.logs.map((l) => `${l.status}: ${l.note}`));
+
   await prisma.$disconnect();
 
-  console.log('\n✨ ALL MANUAL VERIFICATION CHECKS (AUTH, USERS, TRANSACTIONS) PASSED SUCCESSFULLY!');
+  console.log('\n✨ ALL MANUAL VERIFICATION CHECKS (AUTH, USERS, TRANSACTIONS, BOOKINGS) PASSED SUCCESSFULLY!');
 }
 
 run().catch((err) => {
