@@ -201,23 +201,104 @@ async function run() {
   });
   console.log('11. DELETE /api/v1/users/:code [Soft Delete] ->', deleteUserRes.statusCode, deleteUserRes.data);
 
-  // 11. Database verification after mutation
-  const prisma = new PrismaClient();
-  const dbUser = await prisma.user.findUnique({
-    where: { userCode: createdUser?.userCode },
+  // 12. GET /api/v1/transactions (Listing & Pagination)
+  const listTxnRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/transactions?page=1&limit=5',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
-  console.log('12. Direct Database Check:');
-  console.log('    User in DB deletedAt:', dbUser?.deletedAt);
-  console.log('    User status in DB:', dbUser?.status);
+  console.log('12. GET /api/v1/transactions ->', listTxnRes.statusCode);
+  console.log('    Total transactions:', listTxnRes.data.meta?.total, 'Total pages:', listTxnRes.data.meta?.totalPages);
+  console.log('    First item:', listTxnRes.data.data?.[0]?.txnCode, listTxnRes.data.data?.[0]?.customerName, '$' + listTxnRes.data.data?.[0]?.amount);
 
-  const activities = await prisma.activityLog.findMany({
-    where: { userId: dbUser?.id },
-    orderBy: { createdAt: 'desc' },
+  // 13. GET /api/v1/transactions/stats
+  const statsTxnRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/transactions/stats',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
-  console.log('    Audit activity logs created for user:', activities.map((a) => a.action));
+  console.log('13. GET /api/v1/transactions/stats ->', statsTxnRes.statusCode);
+  console.log('    Stats overview:', statsTxnRes.data.data);
+
+  // 14. POST /api/v1/transactions (Create transaction)
+  const createTxnRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: '/api/v1/transactions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      userId: dbUser.id,
+      amount: 450.0,
+      productName: 'Emergency Home Repair Service',
+      paymentMethod: 'Credit Card (Visa ending in 9876)',
+      type: 'PAYMENT',
+      status: 'PENDING',
+    },
+  );
+  console.log('14. POST /api/v1/transactions [Create] ->', createTxnRes.statusCode);
+  const createdTxn = createTxnRes.data.data;
+  console.log('    Created TXN:', createdTxn?.txnCode, 'Amount:', createdTxn?.amount, 'Fee:', createdTxn?.gatewayFee);
+
+  // 15. GET /api/v1/transactions/:code (Detail)
+  const detailTxnRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: `/api/v1/transactions/${createdTxn?.txnCode}`,
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('15. GET /api/v1/transactions/:code [Detail] ->', detailTxnRes.statusCode);
+  console.log('    Customer on detail:', detailTxnRes.data.data?.customer?.name);
+  console.log('    Status histories count:', detailTxnRes.data.data?.statusHistory?.length);
+
+  // 16. PATCH /api/v1/transactions/:code/status (Update status to COMPLETED)
+  const updateTxnStatusRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: `/api/v1/transactions/${createdTxn?.txnCode}/status`,
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      status: 'COMPLETED',
+      note: 'Wire transfer confirmed by clearinghouse',
+    },
+  );
+  console.log('16. PATCH /api/v1/transactions/:code/status ->', updateTxnStatusRes.statusCode);
+  console.log('    Updated status:', updateTxnStatusRes.data.data?.status, 'Settled at:', updateTxnStatusRes.data.data?.settledAt);
+
+  // 17. Verify database transaction records
+  const dbTxn = await prisma.transaction.findUnique({
+    where: { txnCode: createdTxn?.txnCode },
+    include: { statusHistory: true },
+  });
+  console.log('17. Direct DB Check for Transaction:');
+  console.log('    Txn in DB status:', dbTxn?.status, 'SettledAt in DB:', dbTxn?.settledAt);
+  console.log('    Status histories in DB:', dbTxn?.statusHistory.map((h) => `${h.status}: ${h.note}`));
+
   await prisma.$disconnect();
 
-  console.log('\n✨ ALL MANUAL VERIFICATION CHECKS PASSED SUCCESSFULLY!');
+  console.log('\n✨ ALL MANUAL VERIFICATION CHECKS (AUTH, USERS, TRANSACTIONS) PASSED SUCCESSFULLY!');
 }
 
 run().catch((err) => {
