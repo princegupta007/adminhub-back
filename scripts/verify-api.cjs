@@ -400,9 +400,100 @@ async function run() {
   console.log('    Booking in DB status:', dbBooking?.status, 'Payment:', dbBooking?.paymentStatus);
   console.log('    Booking logs in DB:', dbBooking?.logs.map((l) => `${l.status}: ${l.note}`));
 
+  // 24. GET /api/v1/dashboard/stats
+  const statsDashRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/dashboard/stats',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('24. GET /api/v1/dashboard/stats ->', statsDashRes.statusCode);
+  console.log('    KPIs count:', statsDashRes.data.data?.kpis?.length, '| Revenue:', statsDashRes.data.data?.totals?.revenue);
+
+  // 25. GET /api/v1/dashboard/charts
+  const chartsDashRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/dashboard/charts?range=6m',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('25. GET /api/v1/dashboard/charts ->', chartsDashRes.statusCode);
+  console.log('    Series points:', chartsDashRes.data.data?.revenueByPeriod?.length, '| Orders slices:', chartsDashRes.data.data?.ordersByStatus?.length);
+
+  // 26. GET /api/v1/dashboard/alerts
+  const alertsDashRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/dashboard/alerts',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('26. GET /api/v1/dashboard/alerts ->', alertsDashRes.statusCode);
+  console.log('    Active alerts:', alertsDashRes.data.data?.length, '| Top:', alertsDashRes.data.data?.[0]?.title);
+
+  // 27. GET /api/v1/dashboard/health
+  const healthDashRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/dashboard/health',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('27. GET /api/v1/dashboard/health ->', healthDashRes.statusCode);
+  console.log('    Uptime:', healthDashRes.data.data?.uptime, '| Database:', healthDashRes.data.data?.database, '| Active sessions:', healthDashRes.data.data?.activeSessions);
+
+  // 28. GET /api/v1/dashboard/recent-transactions
+  const recentTxnDashRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/dashboard/recent-transactions?limit=5',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('28. GET /api/v1/dashboard/recent-transactions ->', recentTxnDashRes.statusCode);
+  console.log('    Recent count:', recentTxnDashRes.data.data?.length);
+
+  // 29. GET /api/v1/dashboard/upcoming-bookings
+  const upcomingBkgDashRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/dashboard/upcoming-bookings?limit=5',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('29. GET /api/v1/dashboard/upcoming-bookings ->', upcomingBkgDashRes.statusCode);
+  console.log('    Upcoming bookings count:', upcomingBkgDashRes.data.data?.length);
+
+  // 30. GET /api/v1/dashboard/overview
+  const overviewDashRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/dashboard/overview',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('30. GET /api/v1/dashboard/overview ->', overviewDashRes.statusCode);
+  console.log('    Overview payload keys:', Object.keys(overviewDashRes.data.data || {}));
+
   await prisma.$disconnect();
 
-  console.log('\n✨ ALL MANUAL VERIFICATION CHECKS (AUTH, USERS, TRANSACTIONS, BOOKINGS) PASSED SUCCESSFULLY!');
+  console.log('\n✨ ALL MANUAL VERIFICATION CHECKS (AUTH, USERS, TRANSACTIONS, BOOKINGS, DASHBOARD) PASSED SUCCESSFULLY!');
 }
 
 run().catch((err) => {

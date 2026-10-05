@@ -449,14 +449,28 @@ describe('Bookings Module (e2e)', () => {
 
   describe('PATCH /api/v1/bookings/:id (Update, Reschedule & Lifecycle)', () => {
     let testBookingCode: string;
+    let patchUserId: string;
 
     beforeAll(async () => {
+      const patchUser = await prisma.user.create({
+        data: {
+          userCode: `TPU-${Date.now().toString().slice(-4)}`,
+          email: `test.patch.${Date.now()}@test.io`,
+          firstName: 'Patch',
+          lastName: 'Tester',
+          phone: '+1-555-0888',
+          role: UserRole.VIEWER,
+          status: 'ACTIVE',
+        },
+      });
+      patchUserId = patchUser.id;
+
       // Create a dedicated PENDING booking for testing mutations
       const res = await request(app.getHttpServer())
         .post('/api/v1/bookings')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
-          userId: customerUser2Id,
+          userId: patchUserId,
           serviceName: 'Painting Consultation',
           category: 'Painting',
           scheduledAt: new Date(Date.now() + 14 * 86400000).toISOString(),
@@ -467,6 +481,24 @@ describe('Bookings Module (e2e)', () => {
           paymentStatus: PaymentStatus.PENDING,
         });
       testBookingCode = res.body.data.bookingCode;
+    });
+
+    afterAll(async () => {
+      if (patchUserId) {
+        const bookings = await prisma.booking.findMany({
+          where: { userId: patchUserId },
+          select: { id: true },
+        });
+        const bkgIds = bookings.map((b) => b.id);
+        if (bkgIds.length > 0) {
+          await prisma.bookingLog.deleteMany({
+            where: { bookingId: { in: bkgIds } },
+          });
+          await prisma.booking.deleteMany({ where: { id: { in: bkgIds } } });
+        }
+        await prisma.activityLog.deleteMany({ where: { userId: patchUserId } });
+        await prisma.user.deleteMany({ where: { id: patchUserId } });
+      }
     });
 
     it('should transition PENDING booking to CONFIRMED', async () => {
@@ -578,7 +610,11 @@ describe('Bookings Module (e2e)', () => {
       // Verify each request succeeded with 201 Created
       for (const res of responses) {
         if (res.status !== 201) {
-          console.error('Failed concurrent booking response:', res.status, JSON.stringify(res.body));
+          console.error(
+            'Failed concurrent booking response:',
+            res.status,
+            JSON.stringify(res.body),
+          );
         }
         expect(res.status).toBe(201);
       }

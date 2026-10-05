@@ -255,7 +255,7 @@ async function main() {
     const user = users[i % users.length];
     const service = SERVICES[i % SERVICES.length];
     const bookingCode = `BKG-${String(i + 1).padStart(4, '0')}`;
-    const invoiceCode = `INV-${String(10000 + i * 19).padStart(5, '0')}`;
+    const invoiceCode = `INV-${String(10000 + i + 1).padStart(5, '0')}`;
 
     // -60 days past to +30 days future
     const dayDelta = (i - 40) * 2;
