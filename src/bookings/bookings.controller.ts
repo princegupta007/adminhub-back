@@ -8,15 +8,20 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiParam,
+  ApiProduces,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
+import { BypassResponseTransform } from '../common/decorators/public.decorator.js';
 import { BookingDetailResponseDto } from './dto/booking-detail-response.dto.js';
 import {
   BookingSummaryDto,
@@ -26,6 +31,8 @@ import { BookingStatsDto } from './dto/booking-stats-response.dto.js';
 import { BookingsQueryDto } from './dto/bookings-query.dto.js';
 import { CreateBookingDto } from './dto/create-booking.dto.js';
 import { UpdateBookingDto } from './dto/update-booking.dto.js';
+import { RescheduleBookingDto } from './dto/reschedule-booking.dto.js';
+import { CancelBookingDto } from './dto/cancel-booking.dto.js';
 import { BookingsService } from './bookings.service.js';
 
 @ApiTags('Bookings')
@@ -76,6 +83,28 @@ export class BookingsController {
   })
   async getStats(): Promise<BookingStatsDto> {
     return this.bookingsService.getStats();
+  }
+
+  @Get('export')
+  @BypassResponseTransform()
+  @ApiOperation({
+    summary: 'Export filtered bookings as CSV',
+    description:
+      'Generates RFC 4180 compliant CSV export for service bookings matching active query filters.',
+  })
+  @ApiProduces('text/csv')
+  @ApiResponse({ status: 200, description: 'CSV file download stream' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async exportCsv(
+    @Query() query: BookingsQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<string> {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="bookings_export_${new Date().toISOString().slice(0, 10)}.csv"`,
+    );
+    return this.bookingsService.exportCsv(query);
   }
 
   @Get(':id')
@@ -182,5 +211,73 @@ export class BookingsController {
     @CurrentUser('id') adminId: string,
   ): Promise<BookingDetailResponseDto> {
     return this.bookingsService.update(id, dto, adminId);
+  }
+
+  @Post(':id/reschedule')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reschedule service booking appointment',
+    description:
+      'Reschedules booking to a future date/time, verifies overlapping collisions, recalculates end time, and logs audit entries.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Booking UUID or business code (e.g. BKG-0045)',
+    example: 'BKG-0045',
+  })
+  @ApiBody({ type: RescheduleBookingDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking rescheduled successfully',
+    type: BookingDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid date format, past date, or booking is cancelled/completed',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
+  @ApiResponse({
+    status: 409,
+    description: 'Rescheduling conflict: Overlapping active booking in time slot',
+  })
+  async reschedule(
+    @Param('id') id: string,
+    @Body() dto: RescheduleBookingDto,
+    @CurrentUser('id') adminId: string,
+  ): Promise<BookingDetailResponseDto> {
+    return this.bookingsService.reschedule(id, dto, adminId);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Cancel service booking appointment',
+    description:
+      'Sets booking status to CANCELLED, records cancellation reason in lifecycle log, and appends audit trail.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Booking UUID or business code (e.g. BKG-0045)',
+    example: 'BKG-0045',
+  })
+  @ApiBody({ type: CancelBookingDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking cancelled successfully',
+    type: BookingDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Booking is already cancelled or already completed',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
+  async cancel(
+    @Param('id') id: string,
+    @Body() dto: CancelBookingDto,
+    @CurrentUser('id') adminId: string,
+  ): Promise<BookingDetailResponseDto> {
+    return this.bookingsService.cancel(id, dto, adminId);
   }
 }

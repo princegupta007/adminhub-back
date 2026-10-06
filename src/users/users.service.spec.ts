@@ -58,9 +58,11 @@ describe('UsersService', () => {
         findUnique: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
+        updateMany: vi.fn(),
       },
       activityLog: {
         create: vi.fn(),
+        createMany: vi.fn(),
       },
       getNextSequenceValue: vi.fn(),
       $transaction: vi.fn().mockImplementation(async (callback) => {
@@ -306,6 +308,100 @@ describe('UsersService', () => {
       await expect(service.remove('USR-NONE')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('bulkStatus', () => {
+    it('should bulk update user status and append activity logs', async () => {
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', userCode: 'USR-0001', firstName: 'Sarah', lastName: 'Jenkins' },
+        { id: 'u2', userCode: 'USR-0002', firstName: 'John', lastName: 'Doe' },
+      ]);
+      prisma.user.updateMany.mockResolvedValue({ count: 2 });
+      prisma.activityLog.createMany.mockResolvedValue({ count: 2 });
+
+      const res = await service.bulkStatus({
+        userCodes: ['USR-0001', 'USR-0002'],
+        status: UserStatus.SUSPENDED,
+      });
+
+      expect(res.success).toBe(true);
+      expect(res.affectedCount).toBe(2);
+      expect(res.affectedCodes).toEqual(['USR-0001', 'USR-0002']);
+      expect(prisma.user.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['u1', 'u2'] } },
+        data: { status: UserStatus.SUSPENDED },
+      });
+    });
+
+    it('should return 0 affected when no matching users found', async () => {
+      prisma.user.findMany.mockResolvedValue([]);
+
+      const res = await service.bulkStatus({
+        userCodes: ['USR-NONE'],
+        status: UserStatus.ACTIVE,
+      });
+
+      expect(res.affectedCount).toBe(0);
+      expect(res.affectedCodes).toEqual([]);
+    });
+  });
+
+  describe('bulkRole', () => {
+    it('should bulk update user roles and append activity logs', async () => {
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', userCode: 'USR-0001', firstName: 'Sarah', lastName: 'Jenkins' },
+      ]);
+      prisma.user.updateMany.mockResolvedValue({ count: 1 });
+      prisma.activityLog.createMany.mockResolvedValue({ count: 1 });
+
+      const res = await service.bulkRole({
+        userCodes: ['USR-0001'],
+        role: UserRole.ADMIN,
+      });
+
+      expect(res.success).toBe(true);
+      expect(res.affectedCount).toBe(1);
+      expect(prisma.user.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['u1'] } },
+        data: { role: UserRole.ADMIN },
+      });
+    });
+  });
+
+  describe('bulkDelete', () => {
+    it('should bulk soft-delete users', async () => {
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', userCode: 'USR-0001', firstName: 'Sarah', lastName: 'Jenkins' },
+      ]);
+      prisma.user.updateMany.mockResolvedValue({ count: 1 });
+      prisma.activityLog.createMany.mockResolvedValue({ count: 1 });
+
+      const res = await service.bulkDelete({
+        userCodes: ['USR-0001'],
+      });
+
+      expect(res.success).toBe(true);
+      expect(res.affectedCount).toBe(1);
+      expect(prisma.user.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['u1'] } },
+        data: expect.objectContaining({
+          status: UserStatus.INACTIVE,
+          deletedAt: expect.any(Date),
+        }),
+      });
+    });
+  });
+
+  describe('exportCsv', () => {
+    it('should generate valid RFC 4180 CSV matching filters', async () => {
+      prisma.user.findMany.mockResolvedValue([mockUser]);
+
+      const csv = await service.exportCsv({ role: UserRole.ADMIN });
+
+      expect(csv.startsWith('\uFEFF')).toBe(true);
+      expect(csv).toContain('User Code,Name,Email,Phone,Role,Status');
+      expect(csv).toContain('USR-0001,Sarah Jenkins,sarah.jenkins@example.com');
     });
   });
 });

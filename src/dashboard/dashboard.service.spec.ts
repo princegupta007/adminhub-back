@@ -411,4 +411,23 @@ describe('DashboardService', () => {
       expect(reports.totals.overallAverageOrderValue).toBe(75.0);
     });
   });
+
+  describe('exportReportsCsv', () => {
+    it('should format reports table and summary into RFC 4180 CSV', async () => {
+      const now = new Date();
+      prisma.transaction.findMany.mockResolvedValueOnce([
+        {
+          amount: new Prisma.Decimal('150.00'),
+          status: TransactionStatus.COMPLETED,
+          createdAt: now,
+        },
+      ]);
+
+      const csv = await service.exportReportsCsv();
+
+      expect(csv).toContain('Month,Orders,Revenue ($),Avg / Order ($),Growth MoM (%)');
+      expect(csv).toContain('Total / Summary');
+      expect(csv).toContain('150');
+    });
+  });
 });

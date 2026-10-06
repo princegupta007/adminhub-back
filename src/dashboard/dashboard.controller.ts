@@ -7,15 +7,19 @@ import {
   ParseUUIDPipe,
   Patch,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
+  ApiProduces,
   ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { BypassResponseTransform } from '../common/decorators/public.decorator.js';
 import { BookingSummaryDto } from '../bookings/dto/booking-response.dto.js';
 import { TransactionSummaryDto } from '../transactions/dto/transaction-response.dto.js';
 import { DashboardService } from './dashboard.service.js';
@@ -248,5 +252,26 @@ export class DashboardController {
   })
   async getReports(): Promise<DashboardReportsResponseDto> {
     return this.dashboardService.getReports();
+  }
+
+  @Get('reports/export')
+  @BypassResponseTransform()
+  @ApiOperation({
+    summary: 'Export 12-month historical reports table as CSV',
+    description:
+      'Generates RFC 4180 compliant CSV export of monthly orders, revenue, average order value, growth, and totals.',
+  })
+  @ApiProduces('text/csv')
+  @ApiResponse({ status: 200, description: 'CSV file download stream' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Missing or invalid Bearer JWT' })
+  async exportReportsCsv(
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<string> {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="monthly_reports_export_${new Date().toISOString().slice(0, 10)}.csv"`,
+    );
+    return this.dashboardService.exportReportsCsv();
   }
 }

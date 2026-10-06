@@ -411,4 +411,129 @@ describe('BookingsService', () => {
       ).rejects.toThrow(ConflictException);
     });
   });
+
+  describe('exportCsv', () => {
+    it('should export bookings to RFC 4180 CSV formatted string', async () => {
+      prisma.booking.findMany.mockResolvedValue([mockBooking]);
+
+      const csv = await service.exportCsv({});
+
+      expect(csv).toContain('Booking Code,Invoice Code,Customer Name');
+      expect(csv).toContain('BKG-0045');
+      expect(csv).toContain('Sarah Jenkins');
+      expect(csv).toContain('149');
+    });
+  });
+
+  describe('reschedule', () => {
+    it('should reschedule booking to future date and append log', async () => {
+      const futureDate = new Date(Date.now() + 86400000 * 5).toISOString();
+      prisma.booking.findFirst
+        .mockResolvedValueOnce(mockBooking)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          ...mockBooking,
+          scheduledAt: new Date(futureDate),
+        });
+
+      await service.reschedule(
+        mockBooking.id,
+        { scheduledAt: futureDate, note: 'Customer requested new slot' },
+        'admin-1',
+      );
+
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(prisma.booking.update).toHaveBeenCalled();
+      expect(prisma.bookingLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            event: 'Booking Rescheduled',
+            adminId: 'admin-1',
+          }),
+        }),
+      );
+    });
+
+    it('should reject rescheduling to a past date', async () => {
+      prisma.booking.findFirst.mockResolvedValue(mockBooking);
+
+      await expect(
+        service.reschedule(
+          mockBooking.id,
+          { scheduledAt: '2020-01-01T10:00:00.000Z' },
+          'admin-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject rescheduling a cancelled booking', async () => {
+      prisma.booking.findFirst.mockResolvedValue({
+        ...mockBooking,
+        status: BookingStatus.CANCELLED,
+      });
+
+      await expect(
+        service.reschedule(
+          mockBooking.id,
+          { scheduledAt: new Date(Date.now() + 86400000).toISOString() },
+          'admin-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('cancel', () => {
+    it('should cancel booking and log event', async () => {
+      prisma.booking.findFirst
+        .mockResolvedValueOnce(mockBooking)
+        .mockResolvedValueOnce({
+          ...mockBooking,
+          status: BookingStatus.CANCELLED,
+        });
+
+      await service.cancel(
+        mockBooking.id,
+        { reason: 'Customer requested cancellation' },
+        'admin-1',
+      );
+
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(prisma.booking.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: mockBooking.id },
+          data: { status: BookingStatus.CANCELLED },
+        }),
+      );
+      expect(prisma.bookingLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            event: 'Booking Cancelled',
+            adminId: 'admin-1',
+          }),
+        }),
+      );
+    });
+
+    it('should reject cancellation if booking is already CANCELLED', async () => {
+      prisma.booking.findFirst.mockResolvedValue({
+        ...mockBooking,
+        status: BookingStatus.CANCELLED,
+      });
+
+      await expect(
+        service.cancel(mockBooking.id, { reason: 'Test' }, 'admin-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject cancellation if booking is COMPLETED', async () => {
+      prisma.booking.findFirst.mockResolvedValue({
+        ...mockBooking,
+        status: BookingStatus.COMPLETED,
+      });
+
+      await expect(
+        service.cancel(mockBooking.id, { reason: 'Test' }, 'admin-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
 });

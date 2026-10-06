@@ -18,6 +18,7 @@ import { AlertsModule } from './alerts/alerts.module.js';
 import { AdminsModule } from './admins/admins.module.js';
 import { SettingsModule } from './settings/settings.module.js';
 import { ActivitiesModule } from './activities/activities.module.js';
+import { SearchModule } from './search/search.module.js';
 import { THROTTLE_LOGIN_KEY } from './common/decorators/throttle-login.decorator.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
@@ -77,6 +78,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     AdminsModule,
     SettingsModule,
     ActivitiesModule,
+    SearchModule,
   ],
   controllers: [AppController],
   providers: [

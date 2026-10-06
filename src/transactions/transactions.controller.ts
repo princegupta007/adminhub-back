@@ -8,16 +8,22 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiParam,
+  ApiProduces,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
+import { BypassResponseTransform } from '../common/decorators/public.decorator.js';
 import { CreateTransactionDto } from './dto/create-transaction.dto.js';
+import { RefundTransactionDto } from './dto/refund-transaction.dto.js';
 import { TransactionDetailResponseDto } from './dto/transaction-detail-response.dto.js';
 import {
   PaginatedTransactionsResponseDto,
@@ -76,6 +82,28 @@ export class TransactionsController {
   })
   async getStats(): Promise<TransactionStatsDto> {
     return this.transactionsService.getStats();
+  }
+
+  @Get('export')
+  @BypassResponseTransform()
+  @ApiOperation({
+    summary: 'Export filtered transactions as CSV',
+    description:
+      'Generates RFC 4180 compliant CSV export for transactions matching active query filters.',
+  })
+  @ApiProduces('text/csv')
+  @ApiResponse({ status: 200, description: 'CSV file download stream' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async exportCsv(
+    @Query() query: TransactionsQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<string> {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="transactions_export_${new Date().toISOString().slice(0, 10)}.csv"`,
+    );
+    return this.transactionsService.exportCsv(query);
   }
 
   @Get(':id')
@@ -179,5 +207,37 @@ export class TransactionsController {
     @CurrentUser('id') adminId: string,
   ): Promise<TransactionDetailResponseDto> {
     return this.transactionsService.updateStatus(id, dto, adminId);
+  }
+
+  @Post(':id/refund')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Process refund for an existing transaction',
+    description:
+      'Sets status to REFUNDED, records refund reason in transaction status history, and appends audit log.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Transaction UUID or business code (e.g. TXN-0017)',
+    example: 'TXN-0017',
+  })
+  @ApiBody({ type: RefundTransactionDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Transaction refunded successfully',
+    type: TransactionDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Transaction is already refunded or in a non-refundable state',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Transaction not found' })
+  async refund(
+    @Param('id') id: string,
+    @Body() dto: RefundTransactionDto,
+    @CurrentUser('id') adminId: string,
+  ): Promise<TransactionDetailResponseDto> {
+    return this.transactionsService.refund(id, dto, adminId);
   }
 }

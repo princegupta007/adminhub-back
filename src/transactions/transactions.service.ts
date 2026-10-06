@@ -27,6 +27,8 @@ import {
 import { TransactionStatsDto } from './dto/transaction-stats-response.dto.js';
 import { TransactionsQueryDto } from './dto/transactions-query.dto.js';
 import { UpdateTransactionStatusDto } from './dto/update-transaction-status.dto.js';
+import { RefundTransactionDto } from './dto/refund-transaction.dto.js';
+import { formatToCsv } from '../common/utils/csv.util.js';
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -180,19 +182,12 @@ export class TransactionsService {
   }
 
   /**
-   * List paginated transactions with multi-field search, filters, and whitelist sorting.
+   * Builds Prisma where filter object from query DTO.
    */
-  async findAll(
-    query: TransactionsQueryDto,
-  ): Promise<PaginatedTransactionsResponseDto> {
-    const page = Math.max(1, query.page ?? 1);
-    const limit = Math.min(100, Math.max(1, query.limit ?? 10));
-    const skip = (page - 1) * limit;
-
+  private buildWhere(query: TransactionsQueryDto): Prisma.TransactionWhereInput {
     const searchTerm = (query.q ?? query.search)?.trim();
     const normalizedStatus = this.normalizeStatus(query.status);
     const normalizedType = this.normalizeType(query.type);
-    const sortDirection = query.sortOrder ?? query.order ?? 'desc';
 
     const where: Prisma.TransactionWhereInput = {};
 
@@ -286,6 +281,21 @@ export class TransactionsService {
       }
     }
 
+    return where;
+  }
+
+  /**
+   * List paginated transactions with multi-field search, filters, and whitelist sorting.
+   */
+  async findAll(
+    query: TransactionsQueryDto,
+  ): Promise<PaginatedTransactionsResponseDto> {
+    const page = Math.max(1, query.page ?? 1);
+    const limit = Math.min(100, Math.max(1, query.limit ?? 10));
+    const skip = (page - 1) * limit;
+
+    const where = this.buildWhere(query);
+    const sortDirection = query.sortOrder ?? query.order ?? 'desc';
     const orderBy = this.buildOrderBy(query.sortBy, sortDirection);
 
     const [transactions, total] = await Promise.all([
@@ -618,6 +628,113 @@ export class TransactionsService {
           userId: existing.userId,
           action: 'TRANSACTION_STATUS_UPDATED',
           description: `Transaction ${existing.txnCode} status changed from ${currentStatus} to ${targetStatus}. Note: ${dto.note.trim()}`,
+        },
+      });
+    });
+
+    return this.findOne(existing.id);
+  }
+
+  /**
+   * Generates RFC 4180 CSV export matching filter and search query parameters.
+   */
+  async exportCsv(query: TransactionsQueryDto): Promise<string> {
+    const where = this.buildWhere(query);
+    const sortField = query.sortBy || 'createdAt';
+    const sortOrder = query.sortOrder ?? query.order ?? 'desc';
+    const orderBy = this.buildOrderBy(sortField, sortOrder);
+
+    const transactions = await this.prisma.transaction.findMany({
+      where,
+      orderBy,
+      include: { user: true },
+      take: 2000,
+    });
+
+    const headers = [
+      'Transaction Code',
+      'Reference',
+      'Customer Name',
+      'Customer Email',
+      'Type',
+      'Status',
+      'Amount ($)',
+      'Currency',
+      'Payment Method',
+      'Gateway Fee ($)',
+      'Subtotal ($)',
+      'Total ($)',
+      'Created At',
+      'Settled At',
+    ];
+
+    const rows = transactions.map((t) => [
+      t.txnCode,
+      t.reference,
+      t.user ? `${t.user.firstName} ${t.user.lastName}`.trim() : 'Unknown',
+      t.user?.email || '',
+      t.type,
+      t.status,
+      toDecimalNumber(t.amount),
+      t.currency,
+      t.paymentMethod,
+      toDecimalNumber(t.gatewayFee),
+      toDecimalNumber(t.subtotal),
+      toDecimalNumber(t.total),
+      t.createdAt.toISOString(),
+      t.settledAt ? t.settledAt.toISOString() : '',
+    ]);
+
+    return formatToCsv(headers, rows);
+  }
+
+  /**
+   * Issues refund on an eligible transaction and generates audit timeline history.
+   */
+  async refund(
+    idOrCode: string,
+    dto: RefundTransactionDto,
+    adminId: string,
+  ): Promise<TransactionDetailResponseDto> {
+    const existing = await this.findTransactionRecord(idOrCode);
+
+    if (existing.status === TransactionStatus.REFUNDED) {
+      throw new BadRequestException('Transaction is already refunded');
+    }
+
+    if (existing.status === TransactionStatus.FAILED) {
+      throw new BadRequestException('Cannot refund a failed transaction');
+    }
+
+    const note = dto.reason?.trim()
+      ? `Refund processed: ${dto.reason.trim()}`
+      : 'Refund processed by administrator';
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Update transaction status
+      await tx.transaction.update({
+        where: { id: existing.id },
+        data: {
+          status: TransactionStatus.REFUNDED,
+        },
+      });
+
+      // 2. Append history entry
+      await tx.transactionStatusHistory.create({
+        data: {
+          transactionId: existing.id,
+          adminId,
+          status: TransactionStatus.REFUNDED,
+          note,
+        },
+      });
+
+      // 3. Append activity log
+      await tx.activityLog.create({
+        data: {
+          userId: existing.userId,
+          action: 'TRANSACTION_REFUNDED',
+          description: `Refund processed for transaction ${existing.txnCode}. Reason: ${dto.reason?.trim() || 'Administrator action'}`,
         },
       });
     });

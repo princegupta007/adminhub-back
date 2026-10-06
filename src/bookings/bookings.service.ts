@@ -28,6 +28,9 @@ import { BookingStatsDto } from './dto/booking-stats-response.dto.js';
 import { BookingsQueryDto } from './dto/bookings-query.dto.js';
 import { CreateBookingDto } from './dto/create-booking.dto.js';
 import { UpdateBookingDto } from './dto/update-booking.dto.js';
+import { RescheduleBookingDto } from './dto/reschedule-booking.dto.js';
+import { CancelBookingDto } from './dto/cancel-booking.dto.js';
+import { formatToCsv } from '../common/utils/csv.util.js';
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -193,18 +196,11 @@ export class BookingsService {
   }
 
   /**
-   * List paginated bookings with multi-field search, filters, temporal query, and sorting.
+   * Builds Prisma where filter object from query DTO.
    */
-  async findAll(
-    query: BookingsQueryDto,
-  ): Promise<PaginatedBookingsResponseDto> {
-    const page = Math.max(1, query.page ?? 1);
-    const limit = Math.min(100, Math.max(1, query.limit ?? 10));
-    const skip = (page - 1) * limit;
-
+  private buildWhere(query: BookingsQueryDto): Prisma.BookingWhereInput {
     const searchTerm = (query.q ?? query.search)?.trim();
     const normalizedStatus = this.normalizeStatus(query.status);
-    const sortDirection = query.sortOrder ?? query.order ?? 'asc';
     const now = new Date();
 
     const where: Prisma.BookingWhereInput = {};
@@ -296,6 +292,21 @@ export class BookingsService {
       }
     }
 
+    return where;
+  }
+
+  /**
+   * List paginated bookings with multi-field search, filters, temporal query, and sorting.
+   */
+  async findAll(
+    query: BookingsQueryDto,
+  ): Promise<PaginatedBookingsResponseDto> {
+    const page = Math.max(1, query.page ?? 1);
+    const limit = Math.min(100, Math.max(1, query.limit ?? 10));
+    const skip = (page - 1) * limit;
+
+    const where = this.buildWhere(query);
+    const sortDirection = query.sortOrder ?? query.order ?? 'asc';
     const orderBy = this.buildOrderBy(query.sortBy, sortDirection);
 
     const [bookings, total] = await Promise.all([
@@ -737,6 +748,188 @@ export class BookingsService {
               ? 'BOOKING_CANCELLED'
               : 'BOOKING_UPDATED',
           description: `Booking ${existing.bookingCode}: ${eventTitle}. ${eventDesc}`,
+        },
+      });
+    });
+
+    return this.findOne(existing.id);
+  }
+
+  /**
+   * Generates RFC 4180 CSV export matching filter and search query parameters.
+   */
+  async exportCsv(query: BookingsQueryDto): Promise<string> {
+    const where = this.buildWhere(query);
+    const sortField = query.sortBy || 'scheduledAt';
+    const sortOrder = query.sortOrder ?? query.order ?? 'asc';
+    const orderBy = this.buildOrderBy(sortField, sortOrder);
+
+    const bookings = await this.prisma.booking.findMany({
+      where,
+      orderBy,
+      include: { user: true },
+      take: 2000,
+    });
+
+    const headers = [
+      'Booking Code',
+      'Invoice Code',
+      'Customer Name',
+      'Customer Email',
+      'Service Name',
+      'Category',
+      'Scheduled At',
+      'Duration (Hours)',
+      'End Time',
+      'Status',
+      'Payment Status',
+      'Amount ($)',
+      'Location',
+    ];
+
+    const rows = bookings.map((b) => [
+      b.bookingCode,
+      b.invoiceCode,
+      b.user ? `${b.user.firstName} ${b.user.lastName}`.trim() : 'Unknown',
+      b.user?.email || '',
+      b.serviceName,
+      b.category,
+      b.scheduledAt.toISOString(),
+      toDecimalNumber(b.durationHours),
+      b.endTime.toISOString(),
+      b.status,
+      b.paymentStatus,
+      toDecimalNumber(b.amount),
+      b.location,
+    ]);
+
+    return formatToCsv(headers, rows);
+  }
+
+  /**
+   * Reschedules an existing booking to a new future time window with collision detection.
+   */
+  async reschedule(
+    idOrCode: string,
+    dto: RescheduleBookingDto,
+    adminId: string,
+  ): Promise<BookingDetailResponseDto> {
+    const existing = await this.findBookingRecord(idOrCode);
+
+    if (
+      existing.status === BookingStatus.CANCELLED ||
+      existing.status === BookingStatus.COMPLETED
+    ) {
+      throw new BadRequestException(
+        `Cannot reschedule a ${existing.status.toLowerCase()} booking`,
+      );
+    }
+
+    const newStart = new Date(dto.scheduledAt);
+    if (isNaN(newStart.getTime())) {
+      throw new BadRequestException('Invalid date format for scheduledAt');
+    }
+    if (newStart.getTime() <= Date.now()) {
+      throw new BadRequestException('Rescheduled appointment time must be in the future');
+    }
+
+    const durationMinutes = Math.round(Number(existing.durationHours) * 60);
+    const newEnd = new Date(newStart.getTime() + durationMinutes * 60 * 1000);
+
+    // Collision check: overlapping booking for customer
+    const collision = await this.prisma.booking.findFirst({
+      where: {
+        id: { not: existing.id },
+        userId: existing.userId,
+        status: { in: [BookingStatus.CONFIRMED, BookingStatus.PENDING] },
+        AND: [{ scheduledAt: { lt: newEnd } }, { endTime: { gt: newStart } }],
+      },
+    });
+
+    if (collision) {
+      throw new ConflictException(
+        'Rescheduling conflict: Customer already has an active overlapping booking in this time window',
+      );
+    }
+
+    const eventDesc = dto.note?.trim()
+      ? `Rescheduled to ${newStart.toISOString()}: ${dto.note.trim()}`
+      : `Appointment rescheduled to ${newStart.toISOString()}`;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.booking.update({
+        where: { id: existing.id },
+        data: {
+          scheduledAt: newStart,
+          endTime: newEnd,
+        },
+      });
+
+      await tx.bookingLog.create({
+        data: {
+          bookingId: existing.id,
+          adminId,
+          event: 'Booking Rescheduled',
+          description: eventDesc,
+        },
+      });
+
+      await tx.activityLog.create({
+        data: {
+          userId: existing.userId,
+          action: 'BOOKING_RESCHEDULED',
+          description: `Booking ${existing.bookingCode}: Rescheduled. ${eventDesc}`,
+        },
+      });
+    });
+
+    return this.findOne(existing.id);
+  }
+
+  /**
+   * Cancels a booking with reason logging and lifecycle timeline generation.
+   */
+  async cancel(
+    idOrCode: string,
+    dto: CancelBookingDto,
+    adminId: string,
+  ): Promise<BookingDetailResponseDto> {
+    const existing = await this.findBookingRecord(idOrCode);
+
+    if (existing.status === BookingStatus.CANCELLED) {
+      throw new BadRequestException('Booking is already cancelled');
+    }
+
+    if (existing.status === BookingStatus.COMPLETED) {
+      throw new BadRequestException('Cannot cancel a completed booking');
+    }
+
+    const eventDesc = dto.reason?.trim()
+      ? `Cancelled by administrator: ${dto.reason.trim()}`
+      : 'Booking cancelled by administrator';
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.booking.update({
+        where: { id: existing.id },
+        data: {
+          status: BookingStatus.CANCELLED,
+        },
+      });
+
+      await tx.bookingLog.create({
+        data: {
+          bookingId: existing.id,
+          adminId,
+          event: 'Booking Cancelled',
+          description: eventDesc,
+        },
+      });
+
+      await tx.activityLog.create({
+        data: {
+          userId: existing.userId,
+          action: 'BOOKING_CANCELLED',
+          description: `Booking ${existing.bookingCode}: Cancelled. ${eventDesc}`,
         },
       });
     });

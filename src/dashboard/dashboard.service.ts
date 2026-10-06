@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 import { BookingSummaryDto } from '../bookings/dto/booking-response.dto.js';
 import { toDecimalNumber } from '../common/utils/decimal.util.js';
+import { formatToCsv } from '../common/utils/csv.util.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { TransactionSummaryDto } from '../transactions/dto/transaction-response.dto.js';
 import {
@@ -850,5 +851,37 @@ export class DashboardService {
         averageMonthlyRevenue,
       },
     };
+  }
+
+  /**
+   * Generates RFC 4180 CSV export of the 12-month reports table with totals row.
+   */
+  async exportReportsCsv(): Promise<string> {
+    const report = await this.getReports();
+    const headers = [
+      'Month',
+      'Orders',
+      'Revenue ($)',
+      'Avg / Order ($)',
+      'Growth MoM (%)',
+    ];
+
+    const rows = report.rows.map((r: MonthlyReportRowDto) => [
+      r.month,
+      r.orders,
+      r.revenue,
+      r.averageOrderValue,
+      r.growth !== null ? r.growth : '—',
+    ]);
+
+    rows.push([
+      'Total / Summary',
+      report.totals.totalOrders,
+      report.totals.totalRevenue,
+      report.totals.overallAverageOrderValue,
+      '—',
+    ]);
+
+    return formatToCsv(headers, rows);
   }
 }

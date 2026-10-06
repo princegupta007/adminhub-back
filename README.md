@@ -134,3 +134,24 @@ npm run format
 # TypeScript strict build
 npm run build
 ```
+
+---
+
+## 7. Enterprise Workflows & Bulk Operations (Phase 11)
+
+- **Bulk User Management:**
+  - `POST /api/v1/users/bulk/status`: Batch status transitions (`ACTIVE`, `INACTIVE`, `SUSPENDED`) with transactional audit records.
+  - `POST /api/v1/users/bulk/role`: Batch role transitions (`ADMIN`, `EDITOR`, `VIEWER`) guarded by `SUPER_ADMIN` RBAC.
+  - `POST /api/v1/users/bulk/delete`: Batch soft-deletion with user code preservation.
+- **RFC 4180 CSV Exports:**
+  - `GET /api/v1/users/export`: Raw CSV stream with Excel-friendly UTF-8 BOM and formula injection protection.
+  - `GET /api/v1/transactions/export`: Filtered transaction ledger export.
+  - `GET /api/v1/bookings/export`: Filtered appointments and scheduling export.
+  - `GET /api/v1/dashboard/reports/export`: 12-month analytics and summary totals export.
+- **Direct Entity Lifecycles:**
+  - `POST /api/v1/transactions/:id/refund`: Automated refund processing with audit timeline log.
+  - `POST /api/v1/bookings/:id/reschedule`: Future appointment rescheduling with overlapping collision prevention.
+  - `POST /api/v1/bookings/:id/cancel`: Appointment cancellation with reason logging.
+- **Cross-Entity Omni-Search:**
+  - `GET /api/v1/search?q=:query`: Unified search across Users, Transactions, and Bookings for command palettes and global search bars.
+

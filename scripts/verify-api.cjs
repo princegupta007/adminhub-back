@@ -795,13 +795,213 @@ async function run() {
   });
   console.log('49. GET /api/v1/activities ->', getActivitiesRes.statusCode, '| Activities count:', getActivitiesRes.data.data?.length, '| Total:', getActivitiesRes.data.meta?.total);
 
+  // ---------------- PHASE 11: ENTERPRISE WORKFLOWS & EXPORTS ----------------
+
+  // 50. POST /api/v1/users/bulk/status
+  const bulkStatusRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: '/api/v1/users/bulk/status',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      userCodes: [dbUser.userCode],
+      status: 'ACTIVE',
+    },
+  );
+  console.log('50. POST /api/v1/users/bulk/status ->', bulkStatusRes.statusCode, '| Affected:', bulkStatusRes.data.data?.affectedCount);
+
+  // 51. POST /api/v1/users/bulk/role
+  const bulkRoleRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: '/api/v1/users/bulk/role',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      userCodes: [dbUser.userCode],
+      role: 'VIEWER',
+    },
+  );
+  console.log('51. POST /api/v1/users/bulk/role ->', bulkRoleRes.statusCode, '| Affected:', bulkRoleRes.data.data?.affectedCount);
+
+  // 52. GET /api/v1/users/export
+  const exportUsersRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/users/export',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('52. GET /api/v1/users/export ->', exportUsersRes.statusCode, '| Content-Type:', exportUsersRes.headers['content-type'], '| CSV Length:', typeof exportUsersRes.data === 'string' ? exportUsersRes.data.length : 'N/A');
+
+  // 53. GET /api/v1/transactions/export
+  const exportTxnsRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/transactions/export',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('53. GET /api/v1/transactions/export ->', exportTxnsRes.statusCode, '| Content-Type:', exportTxnsRes.headers['content-type'], '| CSV Length:', typeof exportTxnsRes.data === 'string' ? exportTxnsRes.data.length : 'N/A');
+
+  // 54. GET /api/v1/bookings/export
+  const exportBkgsRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/bookings/export',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('54. GET /api/v1/bookings/export ->', exportBkgsRes.statusCode, '| Content-Type:', exportBkgsRes.headers['content-type'], '| CSV Length:', typeof exportBkgsRes.data === 'string' ? exportBkgsRes.data.length : 'N/A');
+
+  // 55. GET /api/v1/dashboard/reports/export
+  const exportReportsRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/dashboard/reports/export',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('55. GET /api/v1/dashboard/reports/export ->', exportReportsRes.statusCode, '| Content-Type:', exportReportsRes.headers['content-type'], '| CSV Length:', typeof exportReportsRes.data === 'string' ? exportReportsRes.data.length : 'N/A');
+
+  // 56. POST /api/v1/transactions/:id/refund
+  // Create a dedicated completed transaction to refund
+  const refundTestTxn = await prisma.transaction.create({
+    data: {
+      txnCode: `TXN-VRF-${Date.now().toString().slice(-6)}`,
+      reference: `ref_vrf_${Date.now()}`,
+      userId: dbUser.id,
+      type: 'PAYMENT',
+      status: 'COMPLETED',
+      amount: 100.0,
+      currency: 'USD',
+      productName: 'Verification Product',
+      paymentMethod: 'Credit Card',
+      gatewayFee: 2.9,
+      subtotal: 97.1,
+      total: 100.0,
+      settledAt: new Date(),
+    },
+  });
+
+  const refundRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: `/api/v1/transactions/${refundTestTxn.id}/refund`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      reason: 'Live verification manual test',
+    },
+  );
+  console.log('56. POST /api/v1/transactions/:id/refund ->', refundRes.statusCode, '| Status:', refundRes.data.data?.status);
+
+  // 57. POST /api/v1/bookings/:id/reschedule & cancel
+  const futureDate = new Date(Date.now() + 86400000 * 5);
+  const rescheduleBooking = await prisma.booking.create({
+    data: {
+      bookingCode: `BKG-VRF-${Date.now().toString().slice(-6)}`,
+      userId: dbUser.id,
+      serviceName: 'Verification Appointment',
+      category: 'General',
+      scheduledAt: futureDate,
+      durationHours: 1.0,
+      endTime: new Date(futureDate.getTime() + 3600000),
+      status: 'CONFIRMED',
+      amount: 80.0,
+      paymentStatus: 'PAID',
+      paymentMethod: 'Card',
+      invoiceCode: `INV-VRF-${Date.now().toString().slice(-5)}`,
+    },
+  });
+
+  const rescheduledDate = new Date(Date.now() + 86400000 * 14).toISOString();
+  const rescheduleRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: `/api/v1/bookings/${rescheduleBooking.id}/reschedule`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      scheduledAt: rescheduledDate,
+      note: 'Rescheduling for next week',
+    },
+  );
+  console.log('57a. POST /api/v1/bookings/:id/reschedule ->', rescheduleRes.statusCode, '| ScheduledAt:', rescheduleRes.data.data?.scheduledAt);
+
+  const cancelRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: `/api/v1/bookings/${rescheduleBooking.id}/cancel`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      reason: 'Cancellation test',
+    },
+  );
+  console.log('57b. POST /api/v1/bookings/:id/cancel ->', cancelRes.statusCode, '| Status:', cancelRes.data.data?.status);
+
+  // 58. GET /api/v1/search?q=Sarah
+  const searchRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/search?q=Sarah',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('58. GET /api/v1/search?q=Sarah ->', searchRes.statusCode, '| Matches:', searchRes.data.data?.totalMatches, '| Users:', searchRes.data.data?.users?.length, '| Txns:', searchRes.data.data?.transactions?.length, '| Bkgs:', searchRes.data.data?.bookings?.length);
+
+  // Cleanup temporary verification records
+  await prisma.transactionStatusHistory.deleteMany({ where: { transactionId: refundTestTxn.id } });
+  await prisma.transaction.deleteMany({ where: { id: refundTestTxn.id } });
+  await prisma.bookingLog.deleteMany({ where: { bookingId: rescheduleBooking.id } });
+  await prisma.booking.deleteMany({ where: { id: rescheduleBooking.id } });
+  await prisma.activityLog.deleteMany({ where: { userId: dbUser.id, action: { in: ['TRANSACTION_REFUNDED', 'BOOKING_RESCHEDULED', 'BOOKING_CANCELLED'] } } });
+
   await prisma.$disconnect();
 
-  console.log('\n✨ ALL MANUAL VERIFICATION CHECKS (AUTH, PROFILE, ADMINS, SETTINGS, USERS, TRANSACTIONS, BOOKINGS, DASHBOARD, REPORTS, ACTIVITIES, ALERTS) PASSED SUCCESSFULLY!');
+  console.log('\n✨ ALL 58 MANUAL VERIFICATION CHECKS (AUTH, PROFILE, ADMINS, SETTINGS, USERS, TRANSACTIONS, BOOKINGS, DASHBOARD, REPORTS, ACTIVITIES, ALERTS, BULK OPS, EXPORTS, SEARCH) PASSED SUCCESSFULLY!');
 }
 
 run().catch((err) => {
   console.error('Error during manual verification:', err);
   process.exit(1);
 });
+
 

@@ -13,6 +13,11 @@ import { toDecimalNumber } from '../common/utils/decimal.util.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
+import { BulkUserStatusDto } from './dto/bulk-user-status.dto.js';
+import { BulkUserRoleDto } from './dto/bulk-user-role.dto.js';
+import { BulkUserDeleteDto } from './dto/bulk-user-delete.dto.js';
+import { BulkOperationResponseDto } from './dto/bulk-response.dto.js';
+import { formatToCsv } from '../common/utils/csv.util.js';
 import {
   PaginatedUsersResponseDto,
   UserSummaryDto,
@@ -511,5 +516,244 @@ export class UsersService {
       success: true,
       message: `User ${user.userCode} soft deleted successfully`,
     };
+  }
+
+  /**
+   * Bulk updates user status for an array of userCodes or UUIDs.
+   */
+  async bulkStatus(
+    dto: BulkUserStatusDto,
+    _adminId?: string,
+  ): Promise<BulkOperationResponseDto> {
+    const rawCodes = dto.userCodes.map((c) => c.trim()).filter(Boolean);
+    const isUuids = rawCodes.filter((c) => UUID_REGEX.test(c));
+
+    const matchingUsers = await this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          { userCode: { in: rawCodes } },
+          ...(isUuids.length > 0 ? [{ id: { in: isUuids } }] : []),
+        ],
+      },
+      select: { id: true, userCode: true, firstName: true, lastName: true },
+    });
+
+    if (matchingUsers.length === 0) {
+      return {
+        success: true,
+        affectedCount: 0,
+        affectedCodes: [],
+        message: 'No matching active users found to update',
+      };
+    }
+
+    const ids = matchingUsers.map((u) => u.id);
+    const codes = matchingUsers.map((u) => u.userCode);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.updateMany({
+        where: { id: { in: ids } },
+        data: { status: dto.status },
+      });
+
+      await tx.activityLog.createMany({
+        data: matchingUsers.map((u) => ({
+          userId: u.id,
+          action: 'USER_STATUS_BULK_UPDATE',
+          description: `User status bulk updated to ${dto.status} (${u.userCode})`,
+        })),
+      });
+    });
+
+    this.logger.log(`Bulk status updated for ${codes.length} users: ${codes.join(', ')}`);
+
+    return {
+      success: true,
+      affectedCount: codes.length,
+      affectedCodes: codes,
+      message: `Successfully updated status to ${dto.status} for ${codes.length} user(s)`,
+    };
+  }
+
+  /**
+   * Bulk updates user role for an array of userCodes or UUIDs.
+   */
+  async bulkRole(
+    dto: BulkUserRoleDto,
+    _adminId?: string,
+  ): Promise<BulkOperationResponseDto> {
+    const rawCodes = dto.userCodes.map((c) => c.trim()).filter(Boolean);
+    const isUuids = rawCodes.filter((c) => UUID_REGEX.test(c));
+
+    const matchingUsers = await this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          { userCode: { in: rawCodes } },
+          ...(isUuids.length > 0 ? [{ id: { in: isUuids } }] : []),
+        ],
+      },
+      select: { id: true, userCode: true, firstName: true, lastName: true },
+    });
+
+    if (matchingUsers.length === 0) {
+      return {
+        success: true,
+        affectedCount: 0,
+        affectedCodes: [],
+        message: 'No matching active users found to update',
+      };
+    }
+
+    const ids = matchingUsers.map((u) => u.id);
+    const codes = matchingUsers.map((u) => u.userCode);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.updateMany({
+        where: { id: { in: ids } },
+        data: { role: dto.role },
+      });
+
+      await tx.activityLog.createMany({
+        data: matchingUsers.map((u) => ({
+          userId: u.id,
+          action: 'USER_ROLE_BULK_UPDATE',
+          description: `User role bulk updated to ${dto.role} (${u.userCode})`,
+        })),
+      });
+    });
+
+    this.logger.log(`Bulk role updated for ${codes.length} users: ${codes.join(', ')}`);
+
+    return {
+      success: true,
+      affectedCount: codes.length,
+      affectedCodes: codes,
+      message: `Successfully updated role to ${dto.role} for ${codes.length} user(s)`,
+    };
+  }
+
+  /**
+   * Bulk soft-deletes users.
+   */
+  async bulkDelete(
+    dto: BulkUserDeleteDto,
+    _adminId?: string,
+  ): Promise<BulkOperationResponseDto> {
+    const rawCodes = dto.userCodes.map((c) => c.trim()).filter(Boolean);
+    const isUuids = rawCodes.filter((c) => UUID_REGEX.test(c));
+
+    const matchingUsers = await this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          { userCode: { in: rawCodes } },
+          ...(isUuids.length > 0 ? [{ id: { in: isUuids } }] : []),
+        ],
+      },
+      select: { id: true, userCode: true, firstName: true, lastName: true },
+    });
+
+    if (matchingUsers.length === 0) {
+      return {
+        success: true,
+        affectedCount: 0,
+        affectedCodes: [],
+        message: 'No matching active users found to delete',
+      };
+    }
+
+    const ids = matchingUsers.map((u) => u.id);
+    const codes = matchingUsers.map((u) => u.userCode);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.updateMany({
+        where: { id: { in: ids } },
+        data: {
+          deletedAt: new Date(),
+          status: UserStatus.INACTIVE,
+        },
+      });
+
+      await tx.activityLog.createMany({
+        data: matchingUsers.map((u) => ({
+          userId: u.id,
+          action: 'USER_BULK_DELETED',
+          description: `User account bulk soft deleted (${u.userCode})`,
+        })),
+      });
+    });
+
+    this.logger.log(`Bulk soft deleted ${codes.length} users: ${codes.join(', ')}`);
+
+    return {
+      success: true,
+      affectedCount: codes.length,
+      affectedCodes: codes,
+      message: `Successfully soft deleted ${codes.length} user(s)`,
+    };
+  }
+
+  /**
+   * Generates RFC 4180 CSV export matching filter and search query parameters.
+   */
+  async exportCsv(query: UsersQueryDto): Promise<string> {
+    const where: Prisma.UserWhereInput = {
+      deletedAt: null,
+    };
+
+    if (query.role) {
+      where.role = query.role;
+    }
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    const searchTerm = (query.q || query.search || '').trim();
+    if (searchTerm) {
+      where.OR = [
+        { firstName: { contains: searchTerm, mode: 'insensitive' } },
+        { lastName: { contains: searchTerm, mode: 'insensitive' } },
+        { email: { contains: searchTerm, mode: 'insensitive' } },
+        { userCode: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+    }
+
+    const sortField = query.sortBy || 'createdAt';
+    const sortOrder = query.order || query.sortDirection || 'desc';
+    const orderBy = this.buildOrderBy(sortField, sortOrder);
+
+    const users = await this.prisma.user.findMany({
+      where,
+      orderBy,
+      take: 1000,
+    });
+
+    const headers = [
+      'User Code',
+      'Name',
+      'Email',
+      'Phone',
+      'Role',
+      'Status',
+      '2FA Enabled',
+      'Joined Date',
+      'Last Active',
+    ];
+
+    const rows = users.map((u) => [
+      u.userCode,
+      `${u.firstName} ${u.lastName}`.trim(),
+      u.email,
+      u.phone || '',
+      u.role,
+      u.status,
+      u.twoFactorEnabled ? 'Yes' : 'No',
+      u.joinedAt.toISOString(),
+      u.lastLoginAt ? u.lastLoginAt.toISOString() : '',
+    ]);
+
+    return formatToCsv(headers, rows);
   }
 }

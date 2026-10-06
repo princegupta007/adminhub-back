@@ -1246,3 +1246,197 @@ Standard status codes:
   ```
 - **Errors:** `401 Unauthorized`.
 
+---
+
+## 12. Enterprise Bulk Operations Endpoints
+
+### 12.1. `POST /api/v1/users/bulk/status`
+- **Purpose:** Batch update user statuses with atomic transactional audit logging.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Request Body (`BulkUserStatusDto`):**
+  ```json
+  {
+    "userCodes": ["USR-0001", "USR-0002"],
+    "status": "SUSPENDED"
+  }
+  ```
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": {
+      "success": true,
+      "affectedCount": 2,
+      "affectedCodes": ["USR-0001", "USR-0002"],
+      "message": "Successfully updated status to SUSPENDED for 2 user(s)"
+    }
+  }
+  ```
+- **Errors:** `400 Bad Request` (empty array, invalid status), `401 Unauthorized`.
+
+### 12.2. `POST /api/v1/users/bulk/role`
+- **Purpose:** Batch update customer user roles with atomic audit logging.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` only).
+- **Request Body (`BulkUserRoleDto`):**
+  ```json
+  {
+    "userCodes": ["USR-0001", "USR-0002"],
+    "role": "EDITOR"
+  }
+  ```
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": {
+      "success": true,
+      "affectedCount": 2,
+      "affectedCodes": ["USR-0001", "USR-0002"],
+      "message": "Successfully updated role to EDITOR for 2 user(s)"
+    }
+  }
+  ```
+- **Errors:** `400 Bad Request`, `401 Unauthorized`, `403 Forbidden` (for non-SUPER_ADMIN).
+
+### 12.3. `POST /api/v1/users/bulk/delete`
+- **Purpose:** Batch soft-delete users, marking them inactive and recording audit timestamps.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` only).
+- **Request Body (`BulkUserDeleteDto`):**
+  ```json
+  {
+    "userCodes": ["USR-0001", "USR-0002"]
+  }
+  ```
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": {
+      "success": true,
+      "affectedCount": 2,
+      "affectedCodes": ["USR-0001", "USR-0002"],
+      "message": "Successfully soft deleted 2 user(s)"
+    }
+  }
+  ```
+- **Errors:** `400 Bad Request`, `401 Unauthorized`, `403 Forbidden`.
+
+---
+
+## 13. Data Export Endpoints (RFC 4180 CSV)
+
+All export endpoints generate standard RFC 4180 CSV streams with UTF-8 BOM encoding for seamless Microsoft Excel rendering. They include CSV formula injection mitigation (`=`, `+`, `-`, `@` escaping) and bypass JSON envelope transformation via `@BypassResponseTransform()`.
+
+### 13.1. `GET /api/v1/users/export`
+- **Purpose:** Export filtered customer directory to CSV.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Query Params:** Supports all `UsersQueryDto` filters (`role`, `status`, `q`, `search`).
+- **Response Header:** `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="users_export_YYYY-MM-DD.csv"`.
+
+### 13.2. `GET /api/v1/transactions/export`
+- **Purpose:** Export filtered financial transaction ledger to CSV.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Query Params:** Supports all `TransactionsQueryDto` filters (`status`, `type`, `date`, `dateFrom`, `dateTo`, `search`).
+- **Response Header:** `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="transactions_export_YYYY-MM-DD.csv"`.
+
+### 13.3. `GET /api/v1/bookings/export`
+- **Purpose:** Export filtered appointments directory to CSV.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Query Params:** Supports all `BookingsQueryDto` filters (`status`, `category`, `when`, `dateFrom`, `dateTo`, `search`).
+- **Response Header:** `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="bookings_export_YYYY-MM-DD.csv"`.
+
+### 13.4. `GET /api/v1/dashboard/reports/export`
+- **Purpose:** Export 12-month financial and order performance table with summary totals to CSV.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Response Header:** `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="monthly_reports_export_YYYY-MM-DD.csv"`.
+
+---
+
+## 14. Direct Lifecycle Action Endpoints
+
+### 14.1. `POST /api/v1/transactions/:id/refund`
+- **Purpose:** Process refund on an eligible payment transaction and generate audit history.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Request Body (`RefundTransactionDto`):**
+  ```json
+  {
+    "reason": "Customer cancellation request"
+  }
+  ```
+- **Response (`200 OK`):** Returns full `TransactionDetailResponseDto` with updated `status: "REFUNDED"`.
+- **Errors:** `400 Bad Request` (already refunded, failed transaction), `401 Unauthorized`, `404 Not Found`.
+
+### 14.2. `POST /api/v1/bookings/:id/reschedule`
+- **Purpose:** Reschedule an appointment to a new future time window with overlapping conflict prevention.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Request Body (`RescheduleBookingDto`):**
+  ```json
+  {
+    "scheduledAt": "2026-10-25T14:00:00.000Z",
+    "note": "Client requested afternoon slot"
+  }
+  ```
+- **Response (`200 OK`):** Returns updated `BookingDetailResponseDto` with recalculated `endTime`.
+- **Errors:** `400 Bad Request` (past timestamp, cancelled/completed booking), `401 Unauthorized`, `409 Conflict` (collision).
+
+### 14.3. `POST /api/v1/bookings/:id/cancel`
+- **Purpose:** Cancel an existing appointment with reason recording and audit history.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Request Body (`CancelBookingDto`):**
+  ```json
+  {
+    "reason": "Weather conditions prevented site access"
+  }
+  ```
+- **Response (`200 OK`):** Returns updated `BookingDetailResponseDto` with `status: "CANCELLED"`.
+- **Errors:** `400 Bad Request` (already cancelled, completed booking), `401 Unauthorized`, `404 Not Found`.
+
+---
+
+## 15. Cross-Entity Omni-Search Endpoint
+
+### 15.1. `GET /api/v1/search`
+- **Purpose:** Unified global cross-entity search across Users, Transactions, and Bookings for command palettes and omni-search boxes.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Query Params (`SearchQueryDto`):**
+  - `q` (string, required, min 1 character, max 100 characters): Search term
+  - `limit` (number, optional, default: 5, max: 20): Results per entity category
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": {
+      "query": "Sarah",
+      "totalMatches": 10,
+      "users": [
+        {
+          "id": "123e4567-e89b-12d3-a456-426614174000",
+          "userCode": "USR-0001",
+          "name": "Sarah Jenkins",
+          "email": "sarah.jenkins@example.com",
+          "role": "ADMIN",
+          "status": "ACTIVE"
+        }
+      ],
+      "transactions": [
+        {
+          "id": "223e4567-e89b-12d3-a456-426614174000",
+          "txnCode": "TXN-0017",
+          "customerName": "Sarah Jenkins",
+          "amount": 1250.0,
+          "status": "COMPLETED",
+          "type": "PAYMENT"
+        }
+      ],
+      "bookings": [
+        {
+          "id": "323e4567-e89b-12d3-a456-426614174000",
+          "bookingCode": "BKG-0045",
+          "customerName": "Sarah Jenkins",
+          "serviceName": "Home Deep Cleaning",
+          "scheduledAt": "2026-10-12T10:00:00.000Z",
+          "status": "CONFIRMED"
+        }
+      ]
+    }
+  }
+  ```
+- **Errors:** `400 Bad Request` (missing or empty `q`), `401 Unauthorized`.
+
+

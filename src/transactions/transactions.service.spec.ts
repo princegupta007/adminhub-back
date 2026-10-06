@@ -406,4 +406,74 @@ describe('TransactionsService', () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('exportCsv', () => {
+    it('should export transactions to RFC 4180 CSV formatted string', async () => {
+      prisma.transaction.findMany.mockResolvedValue([mockTransaction]);
+
+      const csv = await service.exportCsv({});
+
+      expect(csv).toContain('Transaction Code,Reference,Customer Name');
+      expect(csv).toContain('TXN-0017');
+      expect(csv).toContain('Sarah Jenkins');
+      expect(csv).toContain('1250');
+    });
+  });
+
+  describe('refund', () => {
+    it('should refund an eligible transaction and log history', async () => {
+      prisma.transaction.findFirst.mockResolvedValue(mockTransaction);
+      prisma.transaction.findMany.mockResolvedValue([]);
+      prisma.transaction.update.mockResolvedValue({
+        ...mockTransaction,
+        status: TransactionStatus.REFUNDED,
+      });
+
+      await service.refund(
+        mockTransaction.id,
+        { reason: 'Customer requested refund' },
+        'admin-1',
+      );
+
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(prisma.transaction.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: mockTransaction.id },
+          data: { status: TransactionStatus.REFUNDED },
+        }),
+      );
+      expect(prisma.transactionStatusHistory.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            transactionId: mockTransaction.id,
+            status: TransactionStatus.REFUNDED,
+            note: 'Refund processed: Customer requested refund',
+            adminId: 'admin-1',
+          }),
+        }),
+      );
+    });
+
+    it('should reject refund when transaction is already REFUNDED', async () => {
+      prisma.transaction.findFirst.mockResolvedValue({
+        ...mockTransaction,
+        status: TransactionStatus.REFUNDED,
+      });
+
+      await expect(
+        service.refund(mockTransaction.id, { reason: 'Test' }, 'admin-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject refund when transaction is FAILED', async () => {
+      prisma.transaction.findFirst.mockResolvedValue({
+        ...mockTransaction,
+        status: TransactionStatus.FAILED,
+      });
+
+      await expect(
+        service.refund(mockTransaction.id, { reason: 'Test' }, 'admin-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
 });
