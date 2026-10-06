@@ -29,6 +29,7 @@ import {
 } from './dto/dashboard-charts.dto.js';
 import { SystemHealthResponseDto } from './dto/dashboard-health.dto.js';
 import { DashboardOverviewResponseDto } from './dto/dashboard-overview.dto.js';
+import { DashboardReportsResponseDto } from './dto/dashboard-reports.dto.js';
 import { DashboardStatsResponseDto } from './dto/dashboard-stats.dto.js';
 
 @ApiTags('Dashboard')
@@ -228,5 +229,24 @@ export class DashboardController {
     @Query() query: DashboardChartsQueryDto,
   ): Promise<DashboardOverviewResponseDto> {
     return this.dashboardService.getOverview(query);
+  }
+
+  @Get('reports')
+  @ApiOperation({
+    summary: 'Retrieve 12-month historical reporting table data',
+    description:
+      'Aggregates monthly order volume, completed revenue, average order value, month-over-month growth, and summary totals.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Dashboard monthly reports retrieved successfully',
+    type: DashboardReportsResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Missing or invalid Bearer JWT',
+  })
+  async getReports(): Promise<DashboardReportsResponseDto> {
+    return this.dashboardService.getReports();
   }
 }

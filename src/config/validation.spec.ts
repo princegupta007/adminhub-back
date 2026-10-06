@@ -6,7 +6,8 @@ describe('Environment Validation (validateEnv)', () => {
     NODE_ENV: 'development',
     PORT: '4000',
     HOST: '0.0.0.0',
-    DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/miles_admin_dev',
+    DATABASE_URL:
+      'postgresql://postgres:postgres@localhost:5432/miles_admin_dev',
     JWT_SECRET: 'production-quality-long-secret-key-32-chars',
     JWT_EXPIRES_IN: '1d',
     FRONTEND_URL: 'http://localhost:3000',
@@ -19,7 +20,9 @@ describe('Environment Validation (validateEnv)', () => {
     const result = validateEnv(validBaseConfig);
     expect(result.PORT).toBe(4000);
     expect(result.HOST).toBe('0.0.0.0');
-    expect(result.JWT_SECRET).toBe('production-quality-long-secret-key-32-chars');
+    expect(result.JWT_SECRET).toBe(
+      'production-quality-long-secret-key-32-chars',
+    );
     expect(result.NODE_ENV).toBe('development');
   });
 
@@ -38,7 +41,10 @@ describe('Environment Validation (validateEnv)', () => {
   });
 
   it('should throw Error when JWT_SECRET is less than 16 characters', () => {
-    const shortSecretConfig = { ...validBaseConfig, JWT_SECRET: 'short-secret' };
+    const shortSecretConfig = {
+      ...validBaseConfig,
+      JWT_SECRET: 'short-secret',
+    };
     expect(() => validateEnv(shortSecretConfig)).toThrow(
       /JWT_SECRET must be at least 16 characters long for security/,
     );

@@ -360,17 +360,18 @@ async function run() {
     {
       userId: dbUser.id,
       serviceName: 'HVAC Air Filter Replacement & Diagnostics',
-      category: 'HOME_MAINTENANCE',
+      category: 'Cleaning',
       scheduledAt: scheduledTime,
       durationHours: 2.0,
       amount: 150.0,
+      paymentMethod: 'Credit Card (Visa ending in 4582)',
       location: '100 Main St, Suite 400',
-      notes: 'Customer reported unusual fan noise',
+      customerNotes: 'Customer reported unusual fan noise',
     },
   );
   console.log('20. POST /api/v1/bookings [Create] ->', createBkgRes.statusCode);
   const createdBkg = createBkgRes.data.data;
-  console.log('    Created Booking:', createdBkg?.bookingCode, 'Invoice:', createdBkg?.invoiceNumber, 'End:', createdBkg?.endTime);
+  console.log('    Created Booking:', createdBkg?.bookingCode, 'Invoice:', createdBkg?.invoiceCode, 'End:', createdBkg?.endTime);
 
   // 21. GET /api/v1/bookings/:code (Detail)
   const detailBkgRes = await request({
@@ -401,7 +402,7 @@ async function run() {
     },
     {
       status: 'COMPLETED',
-      notes: 'Technician completed replacement and airflow check',
+      note: 'Technician completed replacement and airflow check',
     },
   );
   console.log('22. PATCH /api/v1/bookings/:code ->', updateBkgRes.statusCode);
@@ -410,11 +411,11 @@ async function run() {
   // 23. Direct DB Check for Booking
   const dbBooking = await prisma.booking.findUnique({
     where: { bookingCode: createdBkg?.bookingCode },
-    include: { logs: true },
+    include: { lifecycleLogs: true },
   });
   console.log('23. Direct DB Check for Booking:');
   console.log('    Booking in DB status:', dbBooking?.status, 'Payment:', dbBooking?.paymentStatus);
-  console.log('    Booking logs in DB:', dbBooking?.logs.map((l) => `${l.status}: ${l.note}`));
+  console.log('    Booking logs in DB:', dbBooking?.lifecycleLogs?.map((l) => `${l.event}: ${l.description}`));
 
   // 24. GET /api/v1/dashboard/stats
   const statsDashRes = await request({
@@ -623,9 +624,180 @@ async function run() {
   });
   console.log('38. DELETE /api/v1/alerts/:id ->', deleteAlertRes.statusCode, '| Message:', deleteAlertRes.data.data?.message);
 
+  // 39. PATCH /api/v1/auth/profile
+  const patchProfileRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: '/api/v1/auth/profile',
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      name: 'Sarah Jenkins',
+      phone: '+1 (555) 014-2210',
+      timezone: 'PST (UTC-08:00)',
+    },
+  );
+  console.log('39. PATCH /api/v1/auth/profile ->', patchProfileRes.statusCode, '| Name:', patchProfileRes.data.data?.name);
+
+  // 40. PATCH /api/v1/auth/preferences
+  const patchPrefRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: '/api/v1/auth/preferences',
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      twoFactorEnabled: true,
+    },
+  );
+  console.log('40. PATCH /api/v1/auth/preferences ->', patchPrefRes.statusCode, '| 2FA:', patchPrefRes.data.data?.twoFactorEnabled);
+
+  // 41. GET /api/v1/admins
+  const getAdminsRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/admins?page=1&limit=10',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('41. GET /api/v1/admins ->', getAdminsRes.statusCode, '| Admins count:', getAdminsRes.data.data?.length, '| Total:', getAdminsRes.data.meta?.total);
+
+  // 42. POST /api/v1/admins
+  const createAdminRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: '/api/v1/admins',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      name: 'Manual Verifier',
+      email: 'manual.verifier@miles.io',
+      password: 'VerifierPass123!',
+      role: 'ADMIN',
+    },
+  );
+  console.log('42. POST /api/v1/admins ->', createAdminRes.statusCode, '| Created:', createAdminRes.data.data?.email);
+  const createdAdminUuid = createAdminRes.data.data?.id;
+
+  // 43. GET /api/v1/admins/:id
+  const getSingleAdminRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: `/api/v1/admins/${createdAdminUuid}`,
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('43. GET /api/v1/admins/:id ->', getSingleAdminRes.statusCode, '| Name:', getSingleAdminRes.data.data?.name);
+
+  // 44. PATCH /api/v1/admins/:id/role
+  const patchAdminRoleRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: `/api/v1/admins/${createdAdminUuid}/role`,
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      role: 'SUPER_ADMIN',
+    },
+  );
+  console.log('44. PATCH /api/v1/admins/:id/role ->', patchAdminRoleRes.statusCode, '| New role:', patchAdminRoleRes.data.data?.role);
+
+  // 45. DELETE /api/v1/admins/:id
+  const deleteAdminRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: `/api/v1/admins/${createdAdminUuid}`,
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('45. DELETE /api/v1/admins/:id ->', deleteAdminRes.statusCode, '| Message:', deleteAdminRes.data.data?.message);
+
+  // 46. GET /api/v1/settings
+  const getSettingsRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/settings',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('46. GET /api/v1/settings ->', getSettingsRes.statusCode, '| Workspace:', getSettingsRes.data.data?.workspaceName);
+
+  // 47. PATCH /api/v1/settings
+  const patchSettingsRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: '/api/v1/settings',
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      workspaceName: 'AdminHub',
+      supportEmail: 'support@adminhub.io',
+      currency: 'USD',
+      timezone: 'PST (UTC-08:00)',
+    },
+  );
+  console.log('47. PATCH /api/v1/settings ->', patchSettingsRes.statusCode, '| Workspace:', patchSettingsRes.data.data?.workspaceName);
+
+  // 48. GET /api/v1/dashboard/reports
+  const getReportsRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/dashboard/reports',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('48. GET /api/v1/dashboard/reports ->', getReportsRes.statusCode, '| Rows:', getReportsRes.data.data?.rows?.length, '| Total Revenue:', getReportsRes.data.data?.totals?.totalRevenue);
+
+  // 49. GET /api/v1/activities
+  const getActivitiesRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/activities?page=1&limit=5',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('49. GET /api/v1/activities ->', getActivitiesRes.statusCode, '| Activities count:', getActivitiesRes.data.data?.length, '| Total:', getActivitiesRes.data.meta?.total);
+
   await prisma.$disconnect();
 
-  console.log('\n✨ ALL MANUAL VERIFICATION CHECKS (AUTH, USERS, TRANSACTIONS, BOOKINGS, DASHBOARD, ALERTS) PASSED SUCCESSFULLY!');
+  console.log('\n✨ ALL MANUAL VERIFICATION CHECKS (AUTH, PROFILE, ADMINS, SETTINGS, USERS, TRANSACTIONS, BOOKINGS, DASHBOARD, REPORTS, ACTIVITIES, ALERTS) PASSED SUCCESSFULLY!');
 }
 
 run().catch((err) => {

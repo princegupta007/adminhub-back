@@ -379,4 +379,38 @@ describe('Dashboard Module (e2e)', () => {
       expect(Array.isArray(data.upcomingBookings)).toBe(true);
     });
   });
+
+  describe('GET /api/v1/dashboard/reports (Monthly Reports)', () => {
+    it('should return 12-month historical reporting table rows and summary totals', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/dashboard/reports')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      const data = res.body.data;
+
+      expect(data.rows).toBeDefined();
+      expect(data.rows).toHaveLength(12);
+      expect(data.totals).toBeDefined();
+      expect(typeof data.totals.totalOrders).toBe('number');
+      expect(typeof data.totals.totalRevenue).toBe('number');
+      expect(typeof data.totals.overallAverageOrderValue).toBe('number');
+      expect(typeof data.totals.averageMonthlyRevenue).toBe('number');
+
+      // Validate structure of a row
+      const firstRow = data.rows[0];
+      expect(firstRow.month).toBeDefined();
+      expect(typeof firstRow.orders).toBe('number');
+      expect(typeof firstRow.revenue).toBe('number');
+      expect(typeof firstRow.averageOrderValue).toBe('number');
+    });
+
+    it('should reject unauthenticated request with 401', async () => {
+      const res = await request(app.getHttpServer()).get(
+        '/api/v1/dashboard/reports',
+      );
+
+      expect(res.status).toBe(401);
+    });
+  });
 });

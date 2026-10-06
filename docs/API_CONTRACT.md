@@ -124,6 +124,53 @@ Standard status codes:
   ```
 - **Errors:** `401 Unauthorized`.
 
+### 2.3. `PATCH /api/v1/auth/profile`
+- **Purpose:** Update the current administrator's display name, phone, timezone, and avatar URL.
+- **Auth:** Bearer JWT required.
+- **Request Body (`UpdateProfileDto`):**
+  ```json
+  {
+    "name": "Sarah Jenkins",
+    "phone": "+1 (555) 014-2210",
+    "timezone": "PST (UTC-08:00)",
+    "avatarUrl": "https://i.pravatar.cc/150?u=admin_sarah"
+  }
+  ```
+- **Response (`200 OK`):** Returns updated admin profile.
+- **Errors:** `400 Bad Request`, `401 Unauthorized`.
+
+### 2.4. `POST /api/v1/auth/change-password`
+- **Purpose:** Update the account password after validating the current password.
+- **Auth:** Bearer JWT required.
+- **Request Body (`ChangePasswordDto`):**
+  ```json
+  {
+    "currentPassword": "CurrentPassword123",
+    "newPassword": "NewSecurePassword456!"
+  }
+  ```
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": {
+      "message": "Password updated successfully"
+    }
+  }
+  ```
+- **Errors:** `400 Bad Request` (Invalid current password or identical new password), `401 Unauthorized`.
+
+### 2.5. `PATCH /api/v1/auth/preferences`
+- **Purpose:** Update account security preferences (two-factor authentication toggle).
+- **Auth:** Bearer JWT required.
+- **Request Body (`UpdatePreferencesDto`):**
+  ```json
+  {
+    "twoFactorEnabled": true
+  }
+  ```
+- **Response (`200 OK`):** Returns updated admin profile.
+- **Errors:** `400 Bad Request`, `401 Unauthorized`.
+
 ---
 
 ## 3. Dashboard Endpoints
@@ -292,6 +339,43 @@ Standard status codes:
     }
   ]
   ```
+
+### 3.6. `GET /api/v1/dashboard/upcoming-bookings`
+- **Purpose:** Retrieve scheduled future appointments for the dashboard upcoming widget.
+- **Auth:** Bearer JWT required.
+- **Query Params:** `limit` (default: `5`, max: `20`).
+
+### 3.7. `GET /api/v1/dashboard/overview`
+- **Purpose:** Consolidated multi-widget payload delivering stats, charts, alerts, health, recent transactions, and upcoming bookings in a single query.
+- **Auth:** Bearer JWT required.
+- **Query Params:** `range` (`7d`, `1m`, `3m`, `6m`, `1y`; default: `6m`).
+
+### 3.8. `GET /api/v1/dashboard/reports`
+- **Purpose:** Retrieve 12-month historical reporting breakdown powering the Reports panel (`tab=reports`).
+- **Auth:** Bearer JWT required.
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": {
+      "rows": [
+        {
+          "month": "Jan 2026",
+          "orders": 12,
+          "revenue": 14500.00,
+          "averageOrderValue": 1208.33,
+          "growth": 8.5
+        }
+      ],
+      "totals": {
+        "totalOrders": 120,
+        "totalRevenue": 152000.00,
+        "overallAverageOrderValue": 1266.67,
+        "averageMonthlyRevenue": 12666.67
+      }
+    }
+  }
+  ```
+- **Errors:** `401 Unauthorized`.
 
 ---
 
@@ -988,4 +1072,177 @@ Standard status codes:
   }
   ```
 - **Errors:** `401 Unauthorized`, `403 Forbidden` (non-SUPER_ADMIN), `404 Not Found`.
+
+---
+
+## 9. Admin Directory & Lifecycle Management Endpoints
+
+### 9.1. `GET /api/v1/admins`
+- **Purpose:** Paginated listing of system administrators.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` only).
+- **Query Params (`AdminsQueryDto`):**
+  - `page` (number, default: 1)
+  - `limit` (number, default: 10, max: 100)
+  - `role` (enum: `ADMIN`, `SUPER_ADMIN`, optional)
+  - `search` (string, optional: searches `name` and `email`)
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": [
+      {
+        "id": "123e4567-e89b-12d3-a456-426614174000",
+        "name": "Sarah Jenkins",
+        "email": "admin@miles.io",
+        "role": "SUPER_ADMIN",
+        "avatarUrl": "https://i.pravatar.cc/150?u=admin_sarah",
+        "phone": "+1 (555) 014-2210",
+        "timezone": "PST (UTC-08:00)",
+        "twoFactorEnabled": true,
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-10-06T09:00:00.000Z"
+      }
+    ],
+    "meta": {
+      "page": 1,
+      "limit": 10,
+      "total": 2,
+      "totalPages": 1
+    }
+  }
+  ```
+- **Errors:** `401 Unauthorized`, `403 Forbidden`.
+
+### 9.2. `GET /api/v1/admins/:id`
+- **Purpose:** Retrieve administrator details by UUID.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` only).
+- **Response (`200 OK`):** Returns admin object.
+- **Errors:** `400 Bad Request` (Invalid UUID), `401 Unauthorized`, `403 Forbidden`, `404 Not Found`.
+
+### 9.3. `POST /api/v1/admins`
+- **Purpose:** Provision a new administrator account with bcrypt hashed password.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` only).
+- **Request Body (`CreateAdminDto`):**
+  ```json
+  {
+    "name": "Michael Chen",
+    "email": "michael.chen@miles.io",
+    "password": "InitialPassword123!",
+    "role": "ADMIN",
+    "phone": "+1 (555) 014-8832",
+    "timezone": "EST (UTC-05:00)"
+  }
+  ```
+- **Response (`201 Created`):** Returns created admin object.
+- **Errors:** `400 Bad Request`, `401 Unauthorized`, `403 Forbidden`, `409 Conflict` (Email taken).
+
+### 9.4. `PATCH /api/v1/admins/:id/role`
+- **Purpose:** Update administrator role (`ADMIN` or `SUPER_ADMIN`).
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` only).
+- **Safety Invariants:**
+  - Cannot change/demote caller's own role.
+  - Cannot demote the sole remaining Super Administrator.
+- **Request Body (`UpdateAdminRoleDto`):**
+  ```json
+  {
+    "role": "SUPER_ADMIN"
+  }
+  ```
+- **Response (`200 OK`):** Returns updated admin object.
+- **Errors:** `400 Bad Request` (Invariant violation), `401 Unauthorized`, `403 Forbidden`, `404 Not Found`.
+
+### 9.5. `DELETE /api/v1/admins/:id`
+- **Purpose:** Remove administrator account.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` only).
+- **Safety Invariants:**
+  - Cannot delete caller's own account.
+  - Cannot delete the sole remaining Super Administrator.
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": {
+      "message": "Administrator account deleted successfully"
+    }
+  }
+  ```
+- **Errors:** `400 Bad Request` (Invariant violation), `401 Unauthorized`, `403 Forbidden`, `404 Not Found`.
+
+---
+
+## 10. Workspace Settings Endpoints
+
+### 10.1. `GET /api/v1/settings`
+- **Purpose:** Retrieve system and organization workspace configuration.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": {
+      "id": "123e4567-e89b-12d3-a456-426614174000",
+      "workspaceName": "AdminHub",
+      "supportEmail": "support@adminhub.io",
+      "currency": "USD",
+      "timezone": "PST (UTC-08:00)",
+      "updatedAt": "2026-10-06T09:00:00.000Z"
+    }
+  }
+  ```
+- **Errors:** `401 Unauthorized`.
+
+### 10.2. `PATCH /api/v1/settings`
+- **Purpose:** Update organization workspace configuration.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` only).
+- **Request Body (`UpdateSettingsDto`):**
+  ```json
+  {
+    "workspaceName": "AdminHub Enterprise",
+    "supportEmail": "ops@adminhub.io",
+    "currency": "USD",
+    "timezone": "PST (UTC-08:00)"
+  }
+  ```
+- **Response (`200 OK`):** Returns updated workspace settings.
+- **Errors:** `400 Bad Request`, `401 Unauthorized`, `403 Forbidden`.
+
+---
+
+## 11. Activities Stream Endpoints
+
+### 11.1. `GET /api/v1/activities`
+- **Purpose:** Retrieve paginated system activity and user audit log stream.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Query Params (`ActivitiesQueryDto`):**
+  - `page` (number, default: 1)
+  - `limit` (number, default: 10, max: 100)
+  - `userId` (UUID, optional: filter by user)
+  - `action` (string, optional: filter by action name)
+  - `search` (string, optional: searches action and description)
+  - `startDate` (ISO 8601 string, optional)
+  - `endDate` (ISO 8601 string, optional)
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": [
+      {
+        "id": "123e4567-e89b-12d3-a456-426614174000",
+        "userId": "123e4567-e89b-12d3-a456-426614174111",
+        "action": "Profile Updated",
+        "description": "Primary contact phone and billing address confirmed",
+        "createdAt": "2026-10-01T14:30:00.000Z",
+        "user": {
+          "id": "123e4567-e89b-12d3-a456-426614174111",
+          "userCode": "USR-0001",
+          "name": "Sarah Jenkins",
+          "email": "sarah.jenkins@example.com"
+        }
+      }
+    ],
+    "meta": {
+      "page": 1,
+      "limit": 10,
+      "total": 50,
+      "totalPages": 5
+    }
+  }
+  ```
+- **Errors:** `401 Unauthorized`.
 

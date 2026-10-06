@@ -28,6 +28,10 @@ import {
   DashboardTotalsDto,
   KpiStatDto,
 } from './dto/dashboard-stats.dto.js';
+import {
+  DashboardReportsResponseDto,
+  MonthlyReportRowDto,
+} from './dto/dashboard-reports.dto.js';
 
 const MONTH_LABELS = [
   'Jan',
@@ -743,6 +747,108 @@ export class DashboardService {
       health,
       recentTransactions,
       upcomingBookings,
+    };
+  }
+
+  async getReports(): Promise<DashboardReportsResponseDto> {
+    const now = new Date();
+    const monthsCount = 12;
+    const buckets: {
+      label: string;
+      start: Date;
+      end: Date;
+      revenue: number;
+      orders: number;
+    }[] = [];
+
+    for (let i = monthsCount - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const start = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0);
+      const end = new Date(
+        d.getFullYear(),
+        d.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999,
+      );
+      const label = `${MONTH_LABELS[d.getMonth()]} ${d.getFullYear()}`;
+      buckets.push({
+        label,
+        start,
+        end,
+        revenue: 0,
+        orders: 0,
+      });
+    }
+
+    const rangeStart = buckets[0].start;
+    const rangeEnd = buckets[buckets.length - 1].end;
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        createdAt: { gte: rangeStart, lte: rangeEnd },
+      },
+      select: {
+        amount: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+
+    for (const tx of transactions) {
+      const txTime = tx.createdAt.getTime();
+      const bucket = buckets.find(
+        (b) => txTime >= b.start.getTime() && txTime <= b.end.getTime(),
+      );
+      if (bucket) {
+        bucket.orders += 1;
+        if (tx.status === TransactionStatus.COMPLETED) {
+          bucket.revenue += toDecimalNumber(tx.amount);
+        }
+      }
+    }
+
+    const rows: MonthlyReportRowDto[] = [];
+    let prevRevenue: number | null = null;
+    let totalOrders = 0;
+    let totalRevenue = 0;
+
+    for (const b of buckets) {
+      const rev = Number(b.revenue.toFixed(2));
+      const aov = b.orders > 0 ? Number((rev / b.orders).toFixed(2)) : 0;
+      let growth: number | null = null;
+      if (prevRevenue !== null) {
+        growth = this.calculatePercentChange(rev, prevRevenue);
+      }
+      prevRevenue = rev;
+      totalOrders += b.orders;
+      totalRevenue += rev;
+
+      rows.push({
+        month: b.label,
+        orders: b.orders,
+        revenue: rev,
+        averageOrderValue: aov,
+        growth,
+      });
+    }
+
+    totalRevenue = Number(totalRevenue.toFixed(2));
+    const overallAverageOrderValue =
+      totalOrders > 0 ? Number((totalRevenue / totalOrders).toFixed(2)) : 0;
+    const averageMonthlyRevenue =
+      rows.length > 0 ? Number((totalRevenue / rows.length).toFixed(2)) : 0;
+
+    return {
+      rows,
+      totals: {
+        totalOrders,
+        totalRevenue,
+        overallAverageOrderValue,
+        averageMonthlyRevenue,
+      },
     };
   }
 }

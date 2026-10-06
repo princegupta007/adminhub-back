@@ -26,7 +26,10 @@ export class ReadinessResponseDto {
   @ApiProperty({ example: 'ok', description: 'Readiness status' })
   status!: string;
 
-  @ApiProperty({ example: 'connected', description: 'Database connectivity state' })
+  @ApiProperty({
+    example: 'connected',
+    description: 'Database connectivity state',
+  })
   database!: string;
 
   @ApiProperty({ example: 42.5, description: 'Server uptime in seconds' })

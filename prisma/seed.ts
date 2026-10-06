@@ -70,6 +70,7 @@ async function main() {
   await prisma.booking.deleteMany();
   await prisma.user.deleteMany();
   await prisma.alert.deleteMany();
+  await prisma.workspaceSetting.deleteMany();
   await prisma.admin.deleteMany();
 
   // Reset database sequences so codes start from 1
@@ -100,6 +101,20 @@ async function main() {
     },
   });
   console.log(`✓ Admin created: ${admin.email} (password: Admin@123)`);
+
+  const staff = await prisma.admin.create({
+    data: {
+      name: 'Michael Chen',
+      email: 'staff@miles.io',
+      passwordHash,
+      role: AdminRole.ADMIN,
+      avatarUrl: 'https://i.pravatar.cc/150?u=admin_michael',
+      phone: '+1 (555) 014-8832',
+      timezone: 'EST (UTC-05:00)',
+      twoFactorEnabled: false,
+    },
+  });
+  console.log(`✓ Staff Admin created: ${staff.email} (password: Admin@123)`);
 
   // 3. Seed Users (50 realistic app customers)
   console.log('Seeding 50 App Customers...');
@@ -388,6 +403,18 @@ async function main() {
       },
     ],
   });
+  // 8. Seed Workspace Settings
+  console.log('Seeding Workspace Settings...');
+  await prisma.workspaceSetting.create({
+    data: {
+      workspaceName: 'AdminHub',
+      supportEmail: 'support@adminhub.io',
+      currency: 'USD',
+      timezone: 'PST (UTC-08:00)',
+    },
+  });
+  console.log('✓ Created default workspace settings');
+
   // Synchronize database sequences to highest seeded record numbers
   await prisma.$executeRawUnsafe(`SELECT setval('user_code_seq', 50, true);`);
   await prisma.$executeRawUnsafe(`SELECT setval('txn_code_seq', 120, true);`);

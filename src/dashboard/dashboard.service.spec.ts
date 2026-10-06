@@ -382,4 +382,33 @@ describe('DashboardService', () => {
       expect(bkgs[0].amount).toBe(200.0);
     });
   });
+
+  describe('getReports', () => {
+    it('should aggregate monthly reports and compute totals accurately', async () => {
+      const now = new Date();
+      prisma.transaction.findMany.mockResolvedValueOnce([
+        {
+          amount: new Prisma.Decimal('150.00'),
+          status: TransactionStatus.COMPLETED,
+          createdAt: now,
+        },
+        {
+          amount: new Prisma.Decimal('50.00'),
+          status: TransactionStatus.PENDING,
+          createdAt: now,
+        },
+      ]);
+
+      const reports = await service.getReports();
+
+      expect(reports.rows).toHaveLength(12);
+      const currentMonthRow = reports.rows[reports.rows.length - 1];
+      expect(currentMonthRow.orders).toBe(2);
+      expect(currentMonthRow.revenue).toBe(150.0);
+      expect(currentMonthRow.averageOrderValue).toBe(75.0);
+      expect(reports.totals.totalOrders).toBe(2);
+      expect(reports.totals.totalRevenue).toBe(150.0);
+      expect(reports.totals.overallAverageOrderValue).toBe(75.0);
+    });
+  });
 });

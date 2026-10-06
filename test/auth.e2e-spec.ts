@@ -221,6 +221,91 @@ describe('Auth & Security (e2e)', () => {
     });
   });
 
+  describe('Admin Self-Service & Profile Security', () => {
+    it('should update admin profile display attributes', async () => {
+      const res = await request(app.getHttpServer())
+        .patch('/api/v1/auth/profile')
+        .set('Authorization', `Bearer ${validAccessToken}`)
+        .send({
+          name: 'Sarah Connor',
+          phone: '+1 (555) 014-9999',
+          timezone: 'EST (UTC-05:00)',
+        })
+        .expect(200);
+
+      expect(res.body.data.name).toBe('Sarah Connor');
+      expect(res.body.data.phone).toBe('+1 (555) 014-9999');
+      expect(res.body.data.timezone).toBe('EST (UTC-05:00)');
+      expect(res.body.data.passwordHash).toBeUndefined();
+
+      // Reset name back to Sarah Jenkins
+      await request(app.getHttpServer())
+        .patch('/api/v1/auth/profile')
+        .set('Authorization', `Bearer ${validAccessToken}`)
+        .send({ name: 'Sarah Jenkins' })
+        .expect(200);
+    });
+
+    it('should update preferences (toggle 2FA)', async () => {
+      const res = await request(app.getHttpServer())
+        .patch('/api/v1/auth/preferences')
+        .set('Authorization', `Bearer ${validAccessToken}`)
+        .send({ twoFactorEnabled: false })
+        .expect(200);
+
+      expect(res.body.data.twoFactorEnabled).toBe(false);
+
+      // Revert back
+      await request(app.getHttpServer())
+        .patch('/api/v1/auth/preferences')
+        .set('Authorization', `Bearer ${validAccessToken}`)
+        .send({ twoFactorEnabled: true })
+        .expect(200);
+    });
+
+    it('should validate and change password, then allow login with new password', async () => {
+      // 1. Wrong current password -> 400
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/change-password')
+        .set('Authorization', `Bearer ${validAccessToken}`)
+        .send({
+          currentPassword: 'WrongPassword123',
+          newPassword: 'BrandNewPassword1!',
+        })
+        .expect(400);
+
+      // 2. Same password -> 400
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/change-password')
+        .set('Authorization', `Bearer ${validAccessToken}`)
+        .send({
+          currentPassword: 'Admin@123',
+          newPassword: 'Admin@123',
+        })
+        .expect(400);
+
+      // 3. Success change password
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/change-password')
+        .set('Authorization', `Bearer ${validAccessToken}`)
+        .send({
+          currentPassword: 'Admin@123',
+          newPassword: 'BrandNewPassword1!',
+        })
+        .expect(200);
+
+      // 4. Change back to original so test suite remains idempotent
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/change-password')
+        .set('Authorization', `Bearer ${validAccessToken}`)
+        .send({
+          currentPassword: 'BrandNewPassword1!',
+          newPassword: 'Admin@123',
+        })
+        .expect(200);
+    });
+  });
+
   describe('Public Routes & Security Headers', () => {
     it('12. should allow unauthenticated access to /health and /api/v1/health', async () => {
       const resHealth = await request(app.getHttpServer())
