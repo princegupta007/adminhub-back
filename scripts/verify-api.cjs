@@ -51,6 +51,22 @@ async function run() {
   });
   console.log('2. GET /api/v1/health ->', apiHealthRes.statusCode, apiHealthRes.data);
 
+  const liveRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/health/live',
+    method: 'GET',
+  });
+  console.log('2a. GET /health/live ->', liveRes.statusCode, liveRes.data);
+
+  const readyRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/health/ready',
+    method: 'GET',
+  });
+  console.log('2b. GET /health/ready ->', readyRes.statusCode, readyRes.data);
+
   // 2. Swagger docs check
   const swaggerRes = await request({
     hostname: 'localhost',

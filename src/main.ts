@@ -9,10 +9,13 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  // 1. Security Headers via Helmet
+  // 1. Enable graceful shutdown hooks for SIGTERM / SIGINT
+  app.enableShutdownHooks();
+
+  // 2. Security Headers via Helmet
   app.use(helmet());
 
-  // 2. CORS configuration with env-configured origin whitelist
+  // 3. CORS configuration with env-configured origin whitelist
   const frontendUrl = configService.get<string>('frontendUrl', '');
   const allowedOrigins = frontendUrl
     .split(',')
@@ -24,7 +27,7 @@ async function bootstrap() {
       origin: string | undefined,
       callback: (err: Error | null, allow?: boolean) => void,
     ) => {
-      // Allow non-browser requests (Postman, curl, server-to-server)
+      // Allow non-browser requests (Postman, curl, health probes, server-to-server)
       if (!origin) {
         return callback(null, true);
       }
@@ -40,7 +43,7 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // 3. Global strict validation pipe
+  // 4. Global strict validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -52,41 +55,86 @@ async function bootstrap() {
     }),
   );
 
-  // 4. Global API route prefix /api/v1 (health routes excluded for cloud probes)
+  // 5. Global API route prefix /api/v1 (health routes excluded for cloud probes)
   app.setGlobalPrefix('api/v1', {
-    exclude: ['health', 'api/v1/health'],
+    exclude: [
+      'health',
+      'health/live',
+      'health/ready',
+      'api/v1/health',
+      'api/v1/health/live',
+      'api/v1/health/ready',
+    ],
   });
 
-  // 5. Swagger / OpenAPI Documentation mounted at /api/docs
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Miles Admin Hub API')
-    .setDescription(
-      'Production-ready REST API for Miles Admin Dashboard. Covers authentication, users, transactions, bookings, and dashboard analytics.',
-    )
-    .setVersion('1.0.0')
-    .addBearerAuth()
-    .addTag('System', 'System health probes and runtime diagnostics')
-    .addTag(
-      'Authentication',
-      'Admin login, credential verification, and profile management',
-    )
-    .addTag(
-      'Users',
-      'User management, pagination, search, statistics, and profile lifecycle',
-    )
-    .build();
+  // 6. Swagger / OpenAPI Documentation (configurable, enabled by default in non-prod)
+  const isSwaggerEnabled = configService.get<boolean>('swagger.enabled', true);
+  if (isSwaggerEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Miles Admin Hub API')
+      .setDescription(
+        'Production-ready REST API for Miles Admin Dashboard. Covers authentication, users, transactions, bookings, alerts, and dashboard analytics.',
+      )
+      .setVersion('1.0.0')
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          name: 'JWT',
+          description: 'Enter your JWT token',
+          in: 'header',
+        },
+        'JWT-auth',
+      )
+      .addTag('System', 'System health probes and runtime diagnostics')
+      .addTag(
+        'Authentication',
+        'Admin login, credential verification, and profile management',
+      )
+      .addTag(
+        'Users',
+        'User management, pagination, search, statistics, and profile lifecycle',
+      )
+      .addTag(
+        'Transactions',
+        'Financial transactions ledger, invoice lookups, status transitions, and audit logs',
+      )
+      .addTag(
+        'Bookings',
+        'Meeting logistics, service appointments, reschedule/cancel workflows, and audit logs',
+      )
+      .addTag(
+        'Dashboard',
+        'KPI cards, continuous time-series charts, status donuts, and consolidated overview',
+      )
+      .addTag(
+        'Alerts',
+        'System alerts, notifications feed, batch resolution, and incident lifecycle',
+      )
+      .build();
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document, {
-    swaggerOptions: {
-      persistAuthorization: true,
-    },
-  });
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document, {
+      swaggerOptions: {
+        persistAuthorization: true,
+      },
+    });
+    Logger.log('Swagger documentation mounted at /api/docs', 'Bootstrap');
+  } else {
+    Logger.log(
+      'Swagger documentation disabled in current environment',
+      'Bootstrap',
+    );
+  }
 
   const port = configService.get<number>('port', 4000);
-  await app.listen(port);
+  const host = configService.get<string>('host', '0.0.0.0');
+  await app.listen(port, host);
 
-  Logger.log(`Miles Admin Hub API running on port ${port}`, 'Bootstrap');
-  Logger.log(`Swagger documentation mounted at /api/docs`, 'Bootstrap');
+  Logger.log(
+    `Miles Admin Hub API running on http://${host}:${port}`,
+    'Bootstrap',
+  );
 }
 await bootstrap();

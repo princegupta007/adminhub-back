@@ -780,15 +780,49 @@ Standard status codes:
 
 ---
 
-## 7. Health Check Endpoints
+## 7. Health Check & Diagnostic Probe Endpoints
 
 ### 7.1. `GET /health` & `GET /api/v1/health`
 - **Purpose:** Basic system heartbeat check for deployment monitors, load balancers, and CI verification.
+- **Auth:** Public (no authentication required).
+- **Response (`200 OK`):**
+  ```json
+  {
+    "status": "ok",
+    "uptime": 1284.52,
+    "timestamp": "2026-10-05T20:45:00.000Z"
+  }
+  ```
+
+### 7.2. `GET /health/live` & `GET /api/v1/health/live`
+- **Purpose:** Process liveness probe for Kubernetes and Docker container managers.
 - **Auth:** Public.
 - **Response (`200 OK`):**
   ```json
   {
     "status": "ok",
+    "uptime": 1284.52,
+    "timestamp": "2026-10-05T20:45:00.000Z"
+  }
+  ```
+
+### 7.3. `GET /health/ready` & `GET /api/v1/health/ready`
+- **Purpose:** Dependency readiness probe verifying PostgreSQL database connectivity before traffic routing.
+- **Auth:** Public.
+- **Response (`200 OK`):**
+  ```json
+  {
+    "status": "ok",
+    "database": "connected",
+    "uptime": 1284.52,
+    "timestamp": "2026-10-05T20:45:00.000Z"
+  }
+  ```
+- **Error Response (`503 Service Unavailable`):**
+  ```json
+  {
+    "status": "error",
+    "database": "disconnected",
     "uptime": 1284.52,
     "timestamp": "2026-10-05T20:45:00.000Z"
   }
