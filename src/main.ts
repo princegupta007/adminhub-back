@@ -22,6 +22,14 @@ async function bootstrap() {
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+  const railwayPublicDomain =
+    process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RAILWAY_STATIC_URL;
+  if (railwayPublicDomain) {
+    const cleanDomain = railwayPublicDomain.replace(/^https?:\/\//, '');
+    allowedOrigins.push(`https://${cleanDomain}`);
+    allowedOrigins.push(`http://${cleanDomain}`);
+  }
+
   app.enableCors({
     origin: (
       origin: string | undefined,
@@ -34,6 +42,8 @@ async function bootstrap() {
       if (
         allowedOrigins.length === 0 ||
         allowedOrigins.includes(origin) ||
+        origin.endsWith('.up.railway.app') ||
+        origin.endsWith('.railway.app') ||
         process.env.NODE_ENV !== 'production'
       ) {
         return callback(null, true);
