@@ -96,19 +96,25 @@ export class SearchService {
       status: u.status,
     }));
 
-    const transactions: SearchTransactionResultDto[] = rawTransactions.map((t) => ({
-      id: t.id,
-      txnCode: t.txnCode,
-      customerName: t.user ? `${t.user.firstName} ${t.user.lastName}`.trim() : 'Unknown Customer',
-      amount: toDecimalNumber(t.amount),
-      status: t.status,
-      type: t.type,
-    }));
+    const transactions: SearchTransactionResultDto[] = rawTransactions.map(
+      (t) => ({
+        id: t.id,
+        txnCode: t.txnCode,
+        customerName: t.user
+          ? `${t.user.firstName} ${t.user.lastName}`.trim()
+          : 'Unknown Customer',
+        amount: toDecimalNumber(t.amount),
+        status: t.status,
+        type: t.type,
+      }),
+    );
 
     const bookings: SearchBookingResultDto[] = rawBookings.map((b) => ({
       id: b.id,
       bookingCode: b.bookingCode,
-      customerName: b.user ? `${b.user.firstName} ${b.user.lastName}`.trim() : 'Unknown Customer',
+      customerName: b.user
+        ? `${b.user.firstName} ${b.user.lastName}`.trim()
+        : 'Unknown Customer',
       serviceName: b.serviceName,
       scheduledAt: b.scheduledAt.toISOString(),
       status: b.status,

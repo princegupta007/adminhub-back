@@ -177,8 +177,8 @@ async function main() {
     const createdAt = new Date(now.getFullYear(), now.getMonth() - monthOffset, dayOffset + 1, 10 + (i % 10), (i * 7) % 60);
 
     // Types: mostly PAYMENT, some REFUND and TRANSFER
-    let type = TransactionType.PAYMENT;
-    let status = TransactionStatus.COMPLETED;
+    let type: TransactionType = TransactionType.PAYMENT;
+    let status: TransactionStatus = TransactionStatus.COMPLETED;
     let baseAmount = 45.0 + (i % 15) * 85.0;
 
     if (i % 15 === 0) {
@@ -280,8 +280,8 @@ async function main() {
     const durationHours = service.duration;
     const endTime = new Date(scheduledAt.getTime() + durationHours * 60 * 60 * 1000);
 
-    let status = BookingStatus.COMPLETED;
-    let paymentStatus = PaymentStatus.PAID;
+    let status: BookingStatus = BookingStatus.COMPLETED;
+    let paymentStatus: PaymentStatus = PaymentStatus.PAID;
 
     if (dayDelta > 0) {
       status = i % 4 === 0 ? BookingStatus.PENDING : BookingStatus.CONFIRMED;

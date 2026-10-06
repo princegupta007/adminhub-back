@@ -85,7 +85,7 @@ export class UsersQueryDto extends PaginationQueryDto {
   @IsIn(USER_SORT_FIELDS as unknown as string[], {
     message: `sortBy must be one of: ${USER_SORT_FIELDS.join(', ')}`,
   })
-  sortBy: string = 'createdAt';
+  sortBy?: string = 'createdAt';
 
   @ApiPropertyOptional({
     description: 'Sort direction: asc or desc',
@@ -99,7 +99,7 @@ export class UsersQueryDto extends PaginationQueryDto {
   @IsIn(['asc', 'desc'], {
     message: 'order must be either asc or desc',
   })
-  order: 'asc' | 'desc' = 'desc';
+  order?: 'asc' | 'desc' = 'desc';
 
   @ApiPropertyOptional({
     description: 'Alias for order sort direction',

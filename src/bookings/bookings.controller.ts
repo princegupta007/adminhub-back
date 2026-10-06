@@ -233,13 +233,15 @@ export class BookingsController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Invalid date format, past date, or booking is cancelled/completed',
+    description:
+      'Invalid date format, past date, or booking is cancelled/completed',
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Booking not found' })
   @ApiResponse({
     status: 409,
-    description: 'Rescheduling conflict: Overlapping active booking in time slot',
+    description:
+      'Rescheduling conflict: Overlapping active booking in time slot',
   })
   async reschedule(
     @Param('id') id: string,

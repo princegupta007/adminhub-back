@@ -21,7 +21,7 @@ RUN npm ci --legacy-peer-deps && npx prisma generate
 # ==============================================================================
 FROM dependencies AS builder
 WORKDIR /app
-COPY tsconfig.json nest-cli.json ./
+COPY tsconfig.json tsconfig.build.json nest-cli.json ./
 COPY src ./src/
 RUN npm run build
 # Prune development dependencies so only production packages remain

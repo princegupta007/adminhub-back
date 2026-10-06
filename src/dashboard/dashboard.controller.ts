@@ -263,7 +263,10 @@ export class DashboardController {
   })
   @ApiProduces('text/csv')
   @ApiResponse({ status: 200, description: 'CSV file download stream' })
-  @ApiResponse({ status: 401, description: 'Unauthorized - Missing or invalid Bearer JWT' })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Missing or invalid Bearer JWT',
+  })
   async exportReportsCsv(
     @Res({ passthrough: true }) res: Response,
   ): Promise<string> {

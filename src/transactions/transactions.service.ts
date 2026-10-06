@@ -184,7 +184,9 @@ export class TransactionsService {
   /**
    * Builds Prisma where filter object from query DTO.
    */
-  private buildWhere(query: TransactionsQueryDto): Prisma.TransactionWhereInput {
+  private buildWhere(
+    query: TransactionsQueryDto,
+  ): Prisma.TransactionWhereInput {
     const searchTerm = (query.q ?? query.search)?.trim();
     const normalizedStatus = this.normalizeStatus(query.status);
     const normalizedType = this.normalizeType(query.type);

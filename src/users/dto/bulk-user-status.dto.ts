@@ -1,6 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { UserStatus } from '@prisma/client';
-import { ArrayMaxSize, ArrayNotEmpty, IsArray, IsEnum, IsString } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayNotEmpty,
+  IsArray,
+  IsEnum,
+  IsString,
+} from 'class-validator';
 
 export class BulkUserStatusDto {
   @ApiProperty({

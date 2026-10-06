@@ -830,7 +830,9 @@ export class BookingsService {
       throw new BadRequestException('Invalid date format for scheduledAt');
     }
     if (newStart.getTime() <= Date.now()) {
-      throw new BadRequestException('Rescheduled appointment time must be in the future');
+      throw new BadRequestException(
+        'Rescheduled appointment time must be in the future',
+      );
     }
 
     const durationMinutes = Math.round(Number(existing.durationHours) * 60);

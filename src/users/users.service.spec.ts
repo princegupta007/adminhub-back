@@ -15,9 +15,11 @@ describe('UsersService', () => {
       findUnique: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
+      updateMany: ReturnType<typeof vi.fn>;
     };
     activityLog: {
       create: ReturnType<typeof vi.fn>;
+      createMany: ReturnType<typeof vi.fn>;
     };
     getNextSequenceValue: ReturnType<typeof vi.fn>;
     $transaction: ReturnType<typeof vi.fn>;
@@ -314,7 +316,12 @@ describe('UsersService', () => {
   describe('bulkStatus', () => {
     it('should bulk update user status and append activity logs', async () => {
       prisma.user.findMany.mockResolvedValue([
-        { id: 'u1', userCode: 'USR-0001', firstName: 'Sarah', lastName: 'Jenkins' },
+        {
+          id: 'u1',
+          userCode: 'USR-0001',
+          firstName: 'Sarah',
+          lastName: 'Jenkins',
+        },
         { id: 'u2', userCode: 'USR-0002', firstName: 'John', lastName: 'Doe' },
       ]);
       prisma.user.updateMany.mockResolvedValue({ count: 2 });
@@ -350,7 +357,12 @@ describe('UsersService', () => {
   describe('bulkRole', () => {
     it('should bulk update user roles and append activity logs', async () => {
       prisma.user.findMany.mockResolvedValue([
-        { id: 'u1', userCode: 'USR-0001', firstName: 'Sarah', lastName: 'Jenkins' },
+        {
+          id: 'u1',
+          userCode: 'USR-0001',
+          firstName: 'Sarah',
+          lastName: 'Jenkins',
+        },
       ]);
       prisma.user.updateMany.mockResolvedValue({ count: 1 });
       prisma.activityLog.createMany.mockResolvedValue({ count: 1 });
@@ -372,7 +384,12 @@ describe('UsersService', () => {
   describe('bulkDelete', () => {
     it('should bulk soft-delete users', async () => {
       prisma.user.findMany.mockResolvedValue([
-        { id: 'u1', userCode: 'USR-0001', firstName: 'Sarah', lastName: 'Jenkins' },
+        {
+          id: 'u1',
+          userCode: 'USR-0001',
+          firstName: 'Sarah',
+          lastName: 'Jenkins',
+        },
       ]);
       prisma.user.updateMany.mockResolvedValue({ count: 1 });
       prisma.activityLog.createMany.mockResolvedValue({ count: 1 });

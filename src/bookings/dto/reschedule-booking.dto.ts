@@ -1,9 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsISO8601, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsISO8601,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class RescheduleBookingDto {
   @ApiProperty({
-    description: 'New scheduled appointment start datetime (must be in the future)',
+    description:
+      'New scheduled appointment start datetime (must be in the future)',
     example: '2026-11-15T14:00:00.000Z',
   })
   @IsNotEmpty()

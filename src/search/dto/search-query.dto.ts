@@ -1,10 +1,19 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class SearchQueryDto {
   @ApiProperty({
-    description: 'Global search query string across users, transactions, and bookings',
+    description:
+      'Global search query string across users, transactions, and bookings',
     example: 'Sarah',
   })
   @IsNotEmpty()
@@ -13,7 +22,8 @@ export class SearchQueryDto {
   q!: string;
 
   @ApiPropertyOptional({
-    description: 'Maximum items to return per domain category (default 5, max 20)',
+    description:
+      'Maximum items to return per domain category (default 5, max 20)',
     example: 5,
     default: 5,
   })

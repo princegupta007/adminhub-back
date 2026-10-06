@@ -425,7 +425,9 @@ describe('DashboardService', () => {
 
       const csv = await service.exportReportsCsv();
 
-      expect(csv).toContain('Month,Orders,Revenue ($),Avg / Order ($),Growth MoM (%)');
+      expect(csv).toContain(
+        'Month,Orders,Revenue ($),Avg / Order ($),Growth MoM (%)',
+      );
       expect(csv).toContain('Total / Summary');
       expect(csv).toContain('150');
     });

@@ -116,14 +116,8 @@ async function bootstrap() {
         'Admin Directory',
         'Administrator accounts directory, provisioning, and RBAC management',
       )
-      .addTag(
-        'Settings',
-        'Organization and workspace configuration settings',
-      )
-      .addTag(
-        'Activities',
-        'System activity logs and customer audit trails',
-      )
+      .addTag('Settings', 'Organization and workspace configuration settings')
+      .addTag('Activities', 'System activity logs and customer audit trails')
       .build();
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);

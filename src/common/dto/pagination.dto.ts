@@ -13,7 +13,7 @@ export class PaginationQueryDto {
   @Type(() => Number)
   @IsInt({ message: 'page must be an integer' })
   @Min(1, { message: 'page must be greater than or equal to 1' })
-  page: number = 1;
+  page?: number = 1;
 
   @ApiPropertyOptional({
     description: 'Number of items per page',
@@ -27,7 +27,7 @@ export class PaginationQueryDto {
   @IsInt({ message: 'limit must be an integer' })
   @Min(1, { message: 'limit must be greater than or equal to 1' })
   @Max(100, { message: 'limit must be less than or equal to 100' })
-  limit: number = 10;
+  limit?: number = 10;
 }
 
 export class PaginationMetaDto {

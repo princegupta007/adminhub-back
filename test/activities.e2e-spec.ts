@@ -3,13 +3,12 @@ import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import request from 'supertest';
-import type { App } from 'supertest/types';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
 describe('Activities Stream (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
   let jwtService: JwtService;
   let prisma: PrismaService;
   let adminToken: string;

@@ -566,7 +566,9 @@ export class UsersService {
       });
     });
 
-    this.logger.log(`Bulk status updated for ${codes.length} users: ${codes.join(', ')}`);
+    this.logger.log(
+      `Bulk status updated for ${codes.length} users: ${codes.join(', ')}`,
+    );
 
     return {
       success: true,
@@ -624,7 +626,9 @@ export class UsersService {
       });
     });
 
-    this.logger.log(`Bulk role updated for ${codes.length} users: ${codes.join(', ')}`);
+    this.logger.log(
+      `Bulk role updated for ${codes.length} users: ${codes.join(', ')}`,
+    );
 
     return {
       success: true,
@@ -685,7 +689,9 @@ export class UsersService {
       });
     });
 
-    this.logger.log(`Bulk soft deleted ${codes.length} users: ${codes.join(', ')}`);
+    this.logger.log(
+      `Bulk soft deleted ${codes.length} users: ${codes.join(', ')}`,
+    );
 
     return {
       success: true,

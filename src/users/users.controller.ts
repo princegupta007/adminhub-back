@@ -110,8 +110,7 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Bulk update user status',
-    description:
-      'Updates status for an array of users with atomic logging.',
+    description: 'Updates status for an array of users with atomic logging.',
   })
   @ApiBody({ type: BulkUserStatusDto })
   @ApiResponse({ status: 200, type: BulkOperationResponseDto })

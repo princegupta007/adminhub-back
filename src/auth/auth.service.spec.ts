@@ -79,9 +79,11 @@ describe('AuthService', () => {
       expect(result.admin.name).toBe(mockAdmin.name);
       expect(result.admin.role).toBe(AdminRole.SUPER_ADMIN);
       expect(
-        (result.admin as Record<string, unknown>).passwordHash,
+        (result.admin as unknown as Record<string, unknown>).passwordHash,
       ).toBeUndefined();
-      expect((result as Record<string, unknown>).passwordHash).toBeUndefined();
+      expect(
+        (result as unknown as Record<string, unknown>).passwordHash,
+      ).toBeUndefined();
 
       expect(jwtService.sign).toHaveBeenCalledWith({
         sub: mockAdmin.id,
@@ -123,7 +125,9 @@ describe('AuthService', () => {
       expect(profile).toBeDefined();
       expect(profile.id).toBe(mockAdmin.id);
       expect(profile.email).toBe(mockAdmin.email);
-      expect((profile as Record<string, unknown>).passwordHash).toBeUndefined();
+      expect(
+        (profile as unknown as Record<string, unknown>).passwordHash,
+      ).toBeUndefined();
     });
 
     it('should throw UnauthorizedException if admin does not exist', async () => {

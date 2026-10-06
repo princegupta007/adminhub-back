@@ -57,7 +57,9 @@ describe('JwtStrategy', () => {
     });
 
     expect(result).toEqual(mockAdmin);
-    expect((result as Record<string, unknown>).passwordHash).toBeUndefined();
+    expect(
+      (result as unknown as Record<string, unknown>).passwordHash,
+    ).toBeUndefined();
   });
 
   it('should throw UnauthorizedException when admin no longer exists in database', async () => {

@@ -13,13 +13,12 @@ import {
   UserStatus,
 } from '@prisma/client';
 import request from 'supertest';
-import type { App } from 'supertest/types';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
 describe('Enterprise Workflows, Bulk Operations, Exports & Search (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
   let jwtService: JwtService;
   let prisma: PrismaService;
   let superAdminToken: string;
@@ -263,7 +262,9 @@ describe('Enterprise Workflows, Bulk Operations, Exports & Search (e2e)', () => 
 
       expect(res.body.data.affectedCount).toBe(1);
 
-      const deleted = await prisma.user.findUnique({ where: { id: tempUser.id } });
+      const deleted = await prisma.user.findUnique({
+        where: { id: tempUser.id },
+      });
       expect(deleted?.deletedAt).not.toBeNull();
 
       // Clean up temp record permanently
@@ -282,7 +283,9 @@ describe('Enterprise Workflows, Bulk Operations, Exports & Search (e2e)', () => 
         .expect(200);
 
       expect(res.headers['content-type']).toContain('text/csv');
-      expect(res.headers['content-disposition']).toContain('attachment; filename="users_export_');
+      expect(res.headers['content-disposition']).toContain(
+        'attachment; filename="users_export_',
+      );
       expect(res.headers['content-disposition']).toContain('.csv"');
       expect(res.text).toContain('User Code,Name,Email,Phone,Role,Status');
       expect(res.text).toContain('bulk.e2e1@example.com');
@@ -295,7 +298,9 @@ describe('Enterprise Workflows, Bulk Operations, Exports & Search (e2e)', () => 
         .expect(200);
 
       expect(res.headers['content-type']).toContain('text/csv');
-      expect(res.headers['content-disposition']).toContain('attachment; filename="transactions_export_');
+      expect(res.headers['content-disposition']).toContain(
+        'attachment; filename="transactions_export_',
+      );
       expect(res.headers['content-disposition']).toContain('.csv"');
       expect(res.text).toContain('Transaction Code,Reference,Customer Name');
       expect(res.text).toContain('TXN-E2E-REFUND');
@@ -308,7 +313,9 @@ describe('Enterprise Workflows, Bulk Operations, Exports & Search (e2e)', () => 
         .expect(200);
 
       expect(res.headers['content-type']).toContain('text/csv');
-      expect(res.headers['content-disposition']).toContain('attachment; filename="bookings_export_');
+      expect(res.headers['content-disposition']).toContain(
+        'attachment; filename="bookings_export_',
+      );
       expect(res.headers['content-disposition']).toContain('.csv"');
       expect(res.text).toContain('Booking Code,Invoice Code,Customer Name');
       expect(res.text).toContain('BKG-E2E-WORKFLOW');
@@ -321,9 +328,13 @@ describe('Enterprise Workflows, Bulk Operations, Exports & Search (e2e)', () => 
         .expect(200);
 
       expect(res.headers['content-type']).toContain('text/csv');
-      expect(res.headers['content-disposition']).toContain('attachment; filename="monthly_reports_export_');
+      expect(res.headers['content-disposition']).toContain(
+        'attachment; filename="monthly_reports_export_',
+      );
       expect(res.headers['content-disposition']).toContain('.csv"');
-      expect(res.text).toContain('Month,Orders,Revenue ($),Avg / Order ($),Growth MoM (%)');
+      expect(res.text).toContain(
+        'Month,Orders,Revenue ($),Avg / Order ($),Growth MoM (%)',
+      );
       expect(res.text).toContain('Total / Summary');
     });
   });
@@ -346,7 +357,9 @@ describe('Enterprise Workflows, Bulk Operations, Exports & Search (e2e)', () => 
       const history = await prisma.transactionStatusHistory.findMany({
         where: { transactionId: refundTxnId },
       });
-      expect(history.some((h) => h.status === TransactionStatus.REFUNDED)).toBe(true);
+      expect(history.some((h) => h.status === TransactionStatus.REFUNDED)).toBe(
+        true,
+      );
     });
 
     it('POST /api/v1/transactions/:id/refund - rejects double refund with 400', async () => {
@@ -376,7 +389,9 @@ describe('Enterprise Workflows, Bulk Operations, Exports & Search (e2e)', () => 
         })
         .expect(200);
 
-      expect(new Date(res.body.data.scheduledAt).toISOString()).toBe(newFutureDate);
+      expect(new Date(res.body.data.scheduledAt).toISOString()).toBe(
+        newFutureDate,
+      );
 
       // Verify booking log was created
       const logs = await prisma.bookingLog.findMany({
