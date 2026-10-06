@@ -57,10 +57,26 @@ describe('Environment Validation (validateEnv)', () => {
     );
   });
 
-  it('should throw Error when THROTTLE parameters are missing', () => {
-    const { THROTTLE_LIMIT: _limit, ...rest } = validBaseConfig;
-    expect(() => validateEnv(rest)).toThrow(
-      /THROTTLE_LIMIT is a required environment variable/,
+  it('should apply sensible defaults when THROTTLE parameters are omitted', () => {
+    const {
+      THROTTLE_LIMIT: _limit,
+      THROTTLE_TTL: _ttl,
+      LOGIN_THROTTLE_LIMIT: _loginLimit,
+      ...rest
+    } = validBaseConfig;
+    const result = validateEnv(rest);
+    expect(result.THROTTLE_LIMIT).toBe(100);
+    expect(result.THROTTLE_TTL).toBe(60);
+    expect(result.LOGIN_THROTTLE_LIMIT).toBe(5);
+  });
+
+  it('should throw Error when THROTTLE parameter is not a number', () => {
+    const invalidConfig = {
+      ...validBaseConfig,
+      THROTTLE_LIMIT: 'invalid-number',
+    };
+    expect(() => validateEnv(invalidConfig)).toThrow(
+      /"THROTTLE_LIMIT" must be a number/,
     );
   });
 

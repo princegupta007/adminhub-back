@@ -26,15 +26,9 @@ export const envValidationSchema = Joi.object({
       'string.empty': 'FRONTEND_URL cannot be empty',
     }),
   }),
-  THROTTLE_TTL: Joi.number().required().messages({
-    'any.required': 'THROTTLE_TTL is a required environment variable',
-  }),
-  THROTTLE_LIMIT: Joi.number().required().messages({
-    'any.required': 'THROTTLE_LIMIT is a required environment variable',
-  }),
-  LOGIN_THROTTLE_LIMIT: Joi.number().required().messages({
-    'any.required': 'LOGIN_THROTTLE_LIMIT is a required environment variable',
-  }),
+  THROTTLE_TTL: Joi.number().default(60),
+  THROTTLE_LIMIT: Joi.number().default(100),
+  LOGIN_THROTTLE_LIMIT: Joi.number().default(5),
   SWAGGER_ENABLED: Joi.boolean().optional(),
 });
 
