@@ -793,3 +793,165 @@ Standard status codes:
     "timestamp": "2026-10-05T20:45:00.000Z"
   }
   ```
+
+---
+
+## 8. System Alerts & Notifications Endpoints
+
+### 8.1. `GET /api/v1/alerts`
+- **Purpose:** Retrieve paginated list of operational alerts with search and filtering.
+- **Auth:** Bearer JWT required.
+- **Query Parameters:**
+  - `page` (default 1, min 1)
+  - `limit` (default 10, min 1, max 100)
+  - `search` / `q` (keyword query across title and description)
+  - `severity` (`INFO`, `WARNING`, `CRITICAL`)
+  - `isResolved` (boolean string `true` or `false`)
+  - `sortBy` (`createdAt`, `severity`, `title`)
+  - `order` (`asc`, `desc`)
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": [
+      {
+        "id": "a1f7b9e0-8b1e-4f7b-9e0c-1f7b9e0c1f7b",
+        "title": "Server capacity at 92%",
+        "description": "Scale compute resources immediately",
+        "severity": "CRITICAL",
+        "tone": "danger",
+        "isResolved": false,
+        "time": "2 hours ago",
+        "createdAt": "2026-10-05T18:00:00.000Z"
+      }
+    ],
+    "meta": {
+      "page": 1,
+      "limit": 10,
+      "total": 1,
+      "totalPages": 1
+    }
+  }
+  ```
+
+### 8.2. `GET /api/v1/alerts/stats`
+- **Purpose:** Retrieve aggregate counts of total, active, resolved, critical, warning, and info alerts.
+- **Auth:** Bearer JWT required.
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": {
+      "total": 10,
+      "active": 3,
+      "resolved": 7,
+      "critical": 1,
+      "warning": 1,
+      "info": 1
+    }
+  }
+  ```
+
+### 8.3. `GET /api/v1/alerts/notifications-feed`
+- **Purpose:** Retrieve notifications dropdown feed and unread badge count for the topbar bell.
+- **Auth:** Bearer JWT required.
+- **Query Parameters:** `limit` (default 5, max 20)
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": {
+      "unreadCount": 3,
+      "notifications": [
+        {
+          "id": "a1f7b9e0-8b1e-4f7b-9e0c-1f7b9e0c1f7b",
+          "title": "Server capacity at 92%",
+          "body": "Scale compute resources immediately",
+          "tone": "danger",
+          "severity": "CRITICAL",
+          "time": "2 hours ago",
+          "unread": true,
+          "createdAt": "2026-10-05T18:00:00.000Z"
+        }
+      ]
+    }
+  }
+  ```
+
+### 8.4. `POST /api/v1/alerts`
+- **Purpose:** Create a new administrative system alert.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Request Body:**
+  ```json
+  {
+    "title": "Scheduled DB Maintenance",
+    "description": "Database failover drill planned for 02:00 UTC",
+    "severity": "INFO"
+  }
+  ```
+- **Response (`201 Created`):** Returns created alert object inside `data` envelope.
+
+### 8.5. `GET /api/v1/alerts/:id`
+- **Purpose:** Retrieve single alert details by UUID.
+- **Auth:** Bearer JWT required.
+- **Response (`200 OK`):** Returns alert object inside `data` envelope.
+- **Errors:** `400 Bad Request`, `404 Not Found`.
+
+### 8.6. `PATCH /api/v1/alerts/:id`
+- **Purpose:** Update alert title, description, severity, or resolution status.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Response (`200 OK`):** Returns updated alert object inside `data` envelope.
+
+### 8.7. `PATCH /api/v1/alerts/:id/resolve`
+- **Purpose:** Mark single alert as resolved.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": {
+      "id": "a1f7b9e0-8b1e-4f7b-9e0c-1f7b9e0c1f7b",
+      "isResolved": true,
+      "message": "Alert marked as resolved"
+    }
+  }
+  ```
+
+### 8.8. `PATCH /api/v1/alerts/batch-resolve`
+- **Purpose:** Mark multiple alerts as resolved by UUID array.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Request Body:** `{ "ids": ["uuid-1", "uuid-2"] }`
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": {
+      "resolvedCount": 2,
+      "ids": ["uuid-1", "uuid-2"],
+      "message": "Successfully resolved 2 alerts"
+    }
+  }
+  ```
+
+### 8.9. `PATCH /api/v1/alerts/resolve-all`
+- **Purpose:** Mark all active unresolved alerts as resolved.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` or `ADMIN`).
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": {
+      "resolvedCount": 5,
+      "message": "All active alerts marked as resolved"
+    }
+  }
+  ```
+
+### 8.10. `DELETE /api/v1/alerts/:id`
+- **Purpose:** Delete alert permanently.
+- **Auth:** Bearer JWT required (`SUPER_ADMIN` only).
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": {
+      "id": "a1f7b9e0-8b1e-4f7b-9e0c-1f7b9e0c1f7b",
+      "message": "Alert deleted successfully"
+    }
+  }
+  ```
+- **Errors:** `401 Unauthorized`, `403 Forbidden` (non-SUPER_ADMIN), `404 Not Found`.
+

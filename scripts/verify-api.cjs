@@ -491,12 +491,129 @@ async function run() {
   console.log('30. GET /api/v1/dashboard/overview ->', overviewDashRes.statusCode);
   console.log('    Overview payload keys:', Object.keys(overviewDashRes.data.data || {}));
 
+  // 31. GET /api/v1/alerts
+  const alertsListRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/alerts?page=1&limit=5',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('31. GET /api/v1/alerts ->', alertsListRes.statusCode);
+  console.log('    Alerts count:', alertsListRes.data.data?.length, '| Total:', alertsListRes.data.meta?.total);
+
+  // 32. GET /api/v1/alerts/stats
+  const alertsStatsRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/alerts/stats',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('32. GET /api/v1/alerts/stats ->', alertsStatsRes.statusCode);
+  console.log('    Active alerts:', alertsStatsRes.data.data?.active, '| Total:', alertsStatsRes.data.data?.total);
+
+  // 33. GET /api/v1/alerts/notifications-feed
+  const alertsFeedRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: '/api/v1/alerts/notifications-feed?limit=3',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('33. GET /api/v1/alerts/notifications-feed ->', alertsFeedRes.statusCode);
+  console.log('    Unread count:', alertsFeedRes.data.data?.unreadCount, '| Feed items:', alertsFeedRes.data.data?.notifications?.length);
+
+  // 34. POST /api/v1/alerts
+  const createAlertRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: '/api/v1/alerts',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      title: 'Manual Verification Alert',
+      description: 'Automated check alert for script execution',
+      severity: 'WARNING',
+    },
+  );
+  console.log('34. POST /api/v1/alerts ->', createAlertRes.statusCode);
+  const createdAlertId = createAlertRes.data.data?.id;
+  console.log('    Created alert ID:', createdAlertId);
+
+  // 35. GET /api/v1/alerts/:id
+  const getAlertRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: `/api/v1/alerts/${createdAlertId}`,
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('35. GET /api/v1/alerts/:id ->', getAlertRes.statusCode, '| Title:', getAlertRes.data.data?.title);
+
+  // 36. PATCH /api/v1/alerts/:id
+  const patchAlertRes = await request(
+    {
+      hostname: 'localhost',
+      port: 4000,
+      path: `/api/v1/alerts/${createdAlertId}`,
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    {
+      title: 'Manual Verification Alert (Updated)',
+      severity: 'INFO',
+    },
+  );
+  console.log('36. PATCH /api/v1/alerts/:id ->', patchAlertRes.statusCode, '| Updated title:', patchAlertRes.data.data?.title);
+
+  // 37. PATCH /api/v1/alerts/:id/resolve
+  const resolveAlertRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: `/api/v1/alerts/${createdAlertId}/resolve`,
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('37. PATCH /api/v1/alerts/:id/resolve ->', resolveAlertRes.statusCode, '| isResolved:', resolveAlertRes.data.data?.isResolved);
+
+  // 38. DELETE /api/v1/alerts/:id
+  const deleteAlertRes = await request({
+    hostname: 'localhost',
+    port: 4000,
+    path: `/api/v1/alerts/${createdAlertId}`,
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  console.log('38. DELETE /api/v1/alerts/:id ->', deleteAlertRes.statusCode, '| Message:', deleteAlertRes.data.data?.message);
+
   await prisma.$disconnect();
 
-  console.log('\n✨ ALL MANUAL VERIFICATION CHECKS (AUTH, USERS, TRANSACTIONS, BOOKINGS, DASHBOARD) PASSED SUCCESSFULLY!');
+  console.log('\n✨ ALL MANUAL VERIFICATION CHECKS (AUTH, USERS, TRANSACTIONS, BOOKINGS, DASHBOARD, ALERTS) PASSED SUCCESSFULLY!');
 }
 
 run().catch((err) => {
   console.error('Error during manual verification:', err);
   process.exit(1);
 });
+

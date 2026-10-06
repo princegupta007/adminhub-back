@@ -14,6 +14,7 @@ import { UsersModule } from './users/users.module.js';
 import { TransactionsModule } from './transactions/transactions.module.js';
 import { BookingsModule } from './bookings/bookings.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
+import { AlertsModule } from './alerts/alerts.module.js';
 import { THROTTLE_LOGIN_KEY } from './common/decorators/throttle-login.decorator.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
@@ -69,6 +70,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     TransactionsModule,
     BookingsModule,
     DashboardModule,
+    AlertsModule,
   ],
   controllers: [AppController],
   providers: [
