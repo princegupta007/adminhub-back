@@ -16,9 +16,15 @@ export const envValidationSchema = Joi.object({
     'string.min': 'JWT_SECRET must be at least 16 characters long for security',
   }),
   JWT_EXPIRES_IN: Joi.string().default('1d'),
-  FRONTEND_URL: Joi.string().required().messages({
-    'any.required': 'FRONTEND_URL is a required environment variable',
-    'string.empty': 'FRONTEND_URL cannot be empty',
+  CORS_ORIGIN: Joi.string().optional(),
+  FRONTEND_URL: Joi.string().when('CORS_ORIGIN', {
+    is: Joi.exist(),
+    // oxlint-disable-next-line unicorn/no-thenable
+    then: Joi.optional().default(Joi.ref('CORS_ORIGIN')),
+    otherwise: Joi.required().messages({
+      'any.required': 'FRONTEND_URL is a required environment variable',
+      'string.empty': 'FRONTEND_URL cannot be empty',
+    }),
   }),
   THROTTLE_TTL: Joi.number().required().messages({
     'any.required': 'THROTTLE_TTL is a required environment variable',

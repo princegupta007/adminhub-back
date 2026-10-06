@@ -31,7 +31,7 @@ export default (): AppConfig => ({
     secret: process.env.JWT_SECRET || '',
     expiresIn: process.env.JWT_EXPIRES_IN || '1d',
   },
-  frontendUrl: process.env.FRONTEND_URL || '',
+  frontendUrl: process.env.CORS_ORIGIN || process.env.FRONTEND_URL || '',
   throttle: {
     ttl: parseInt(process.env.THROTTLE_TTL || '60', 10),
     limit: parseInt(process.env.THROTTLE_LIMIT || '100', 10),

@@ -52,7 +52,7 @@ EXPOSE 4000
 
 # Container liveness health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:4000/health/live || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-4000}/health || exit 1
 
 # Forward signals properly using dumb-init
 ENTRYPOINT ["dumb-init", "--", "/bin/sh", "./scripts/docker-entrypoint.sh"]

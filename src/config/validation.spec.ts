@@ -69,4 +69,14 @@ describe('Environment Validation (validateEnv)', () => {
     const result = validateEnv(withSwagger);
     expect(result.SWAGGER_ENABLED).toBe(true);
   });
+
+  it('should accept CORS_ORIGIN when FRONTEND_URL is omitted and default FRONTEND_URL to CORS_ORIGIN', () => {
+    const { FRONTEND_URL: _url, ...rest } = validBaseConfig;
+    const withCorsOrigin = {
+      ...rest,
+      CORS_ORIGIN: 'https://miles-flax.vercel.app',
+    };
+    const result = validateEnv(withCorsOrigin);
+    expect(result.FRONTEND_URL).toBe('https://miles-flax.vercel.app');
+  });
 });
