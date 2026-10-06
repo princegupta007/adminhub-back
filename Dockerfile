@@ -14,7 +14,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 # Install all dependencies including devDependencies to enable build and prisma generation
-RUN npm ci && npx prisma generate
+RUN npm ci --legacy-peer-deps && npx prisma generate
 
 # ==============================================================================
 # Stage 3: Build TypeScript Application
