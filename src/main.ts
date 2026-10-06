@@ -95,6 +95,17 @@ async function bootstrap() {
           description: 'Enter your JWT token',
           in: 'header',
         },
+        'bearer',
+      )
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          name: 'JWT',
+          description: 'Enter your JWT token',
+          in: 'header',
+        },
         'JWT-auth',
       )
       .addTag('System', 'System health probes and runtime diagnostics')
